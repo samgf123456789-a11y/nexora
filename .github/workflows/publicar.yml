@@ -1,0 +1,54 @@
+name: Coletar e publicar o site
+
+# Todo dia: coleta as compras abertas no PNCP e publica o site atualizado no GitHub Pages.
+# Nenhum arquivo é gravado no repositório, então ele não cresce a cada dia.
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # 06h no horário de Brasília
+  workflow_dispatch: {}    # botão "Run workflow" para rodar na hora
+  push:
+    branches: [main]       # republica quando você muda algum arquivo
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Se o PNCP recusar a coleta, o site é publicado mesmo assim com os dados que já estavam no
+      # repositório (ou com a demonstração). A data "atualizada em" na tela mostra se ficou velho.
+      - name: Coletar compras abertas (Brasil todo)
+        id: coleta
+        continue-on-error: true
+        run: python collector/pncp_collector.py --modo abertas
+
+      - name: Avisar se a coleta falhou
+        if: steps.coleta.outcome == 'failure'
+        run: echo "::warning::A coleta do PNCP falhou. O site foi publicado com os dados anteriores."
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

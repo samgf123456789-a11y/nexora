@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NEXORA Intelligence — Encontre oportunidades antes da concorrência</title>
+<meta name="description" content="Radar de compras públicas de material de escritório e mobiliário, com pesquisa de produtos aberta a todos.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">N</div>
+      <div><b>NEXORA</b><small>Intelligence</small></div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Principal">
+      <a href="#painel" data-v="painel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Painel</a>
+      <a href="#radar" data-v="radar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 12l6-6"/></svg>Radar</a>
+      <a href="#pesquisa" data-v="pesquisa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Pesquisar produtos</a>
+      <a href="#acompanhar" data-v="acompanhar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Minhas oportunidades</a>
+      <a href="#relatorios" data-v="relatorios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>Relatórios</a>
+      <a href="#planos" data-v="planos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Planos</a>
+      <a href="#ajuda" data-v="ajuda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 .5c0 1.7-2.5 2-2.5 3.5M12 17h.01"/></svg>Ajuda</a>
+      <a href="#conta" data-v="conta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Minha conta</a>
+    </nav>
+    <div class="side-foot" id="rodape">Dados do PNCP</div>
+  </aside>
+  <main class="main" id="conteudo" tabindex="-1"><p class="muted">Carregando…</p></main>
+</div>
+
+<dialog id="dlg-login">
+  <form method="dialog" id="form-login">
+    <h2 id="login-titulo">Entrar na NEXORA</h2>
+    <p class="muted small">Salve filtros, perfil da empresa e receba alertas.</p>
+    <div class="field" style="margin:12px 0"><label for="lg-email">E-mail</label><input id="lg-email" type="email" autocomplete="email" required></div>
+    <div class="field"><label for="lg-senha">Senha</label><input id="lg-senha" type="password" autocomplete="current-password" minlength="8" required></div>
+    <p class="err" id="lg-erro" role="alert"></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" id="lg-entrar" value="entrar">Entrar</button>
+      <button class="btn" id="lg-criar" value="criar" type="button">Criar conta</button>
+      <button class="btn" value="cancel" formnovalidate>Cancelar</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="config.js"></script>
+<script src="conteudo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

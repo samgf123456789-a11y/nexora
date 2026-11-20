@@ -45,14 +45,27 @@
   const PAGINA = 40;
 
   const S = {
-    dados: [], demo: false, geradoEm: null, fonte: "",
-    filtros: { q: "", uf: "", cat: "", tipo: "", vmin: "", vmax: "", prazo: "", ordem: "prazo" },
+    dados: [], demo: false, geradoEm: null, coleta: null, fonte: "",
+    filtros: { q: "", uf: "", cat: "", tipo: "", vmin: "", vmax: "", prazo: "", novas: "", ordem: "prazo" },
     mostrar: PAGINA,
     perfil: lerLocal("nexora_perfil", { tipo: "visitante", razao: "", cnpj: "", ufs: [], cats: [], palavras: "", vmin: "", vmax: "" }),
     sessao: lerLocal("nexora_sessao", null),
     busca: "",
     buscaCat: "",
+    ajudaQ: "",
+    acompFiltro: "",
+    salvos: lerLocal("nexora_salvos", {}), // { id: { status, nota, salvoEm, o: oportunidade } } — só neste navegador
   };
+  const CONTEUDO = window.NEXORA_CONTEUDO || { faq: [], planos: { gratis: [], pago: [] } };
+  const STATUS = {
+    interesse: "Tenho interesse",
+    preparando: "Preparando proposta",
+    enviada: "Proposta enviada",
+    ganhei: "Ganhei",
+    perdi: "Não ganhei ou desisti",
+  };
+  const STATUS_ATIVOS = ["interesse", "preparando", "enviada"];
+  const emailContato = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(CFG.CONTATO_EMAIL || "") ? CFG.CONTATO_EMAIL : "";
 
   /* ------------------------------------------------ utilidades */
   function lerLocal(k, padrao) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : padrao; } catch (e) { return padrao; } }
@@ -72,11 +85,27 @@
     const a = new Date(d); a.setHours(0, 0, 0, 0);
     return Math.round((a - h) / 864e5);
   };
+  const dataHoraBR = (iso) => { const d = new Date(iso); return isNaN(d) ? "—" : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
+  // "Nova" = apareceu na base nas últimas 24 horas (campo primeiro_visto, marcado pelo coletor)
+  const nova = (o) => { if (!o.primeiro_visto) return false; const t = Date.parse(o.primeiro_visto); return !isNaN(t) && Date.now() - t < 864e5; };
   const horaBR = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); };
   const linkSeguro = (u) => (typeof u === "string" && /^https?:\/\//i.test(u)) ? u : null; // só http(s): bloqueia "javascript:"
   const soma = (a, f) => a.reduce((t, x) => t + (Number(f(x)) || 0), 0);
   const mediana = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
   const $ = (sel, el) => (el || document).querySelector(sel);
+
+  /* ------------------------------------------------ oportunidades salvas (acompanhamento) */
+  function gravarSalvos() { gravarLocal("nexora_salvos", S.salvos); }
+  function estaSalvo(id) { return !!S.salvos[id]; }
+  function alternarSalvo(id) {
+    if (S.salvos[id]) { delete S.salvos[id]; gravarSalvos(); return; }
+    const o = S.dados.find((x) => x.numero_controle_pncp === id);
+    if (!o) return;
+    S.salvos[id] = { status: "interesse", nota: "", salvoEm: new Date().toISOString(), o: { ...o } };
+    gravarSalvos();
+  }
+  // dado mais novo se a oportunidade ainda está na base; senão, a cópia guardada ao salvar
+  function atual(reg, id) { return S.dados.find((x) => x.numero_controle_pncp === id) || reg.o; }
 
   function abertas() { return S.dados.filter((o) => { const d = diasAte(o.data_encerramento_proposta); return d === null || d >= 0; }); }
 
@@ -124,7 +153,7 @@
       try {
         const j = await jget(arq);
         if (j.oportunidades && j.oportunidades.length) {
-          S.dados = j.oportunidades; S.demo = !!j.demo; S.geradoEm = j.gerado_em; S.fonte = j.fonte || "";
+          S.dados = j.oportunidades; S.demo = !!j.demo; S.geradoEm = j.gerado_em; S.coleta = j.coleta || null; S.fonte = j.fonte || "";
           return;
         }
       } catch (e) { /* tenta o próximo */ }
@@ -164,6 +193,7 @@
       if (f.uf && o.uf !== f.uf) return false;
       if (f.cat && o.categoria !== f.cat) return false;
       if (f.tipo && o.tipo !== f.tipo) return false;
+      if (f.novas && !nova(o)) return false;
       const v = Number(o.valor_estimado) || 0;
       if (f.vmin !== "" && v < Number(f.vmin)) return false;
       if (f.vmax !== "" && v > Number(f.vmax)) return false;
@@ -183,6 +213,9 @@
 
   /* ------------------------------------------------ componentes de tela */
   function selo(o) {
+    return (nova(o) ? '<span class="tag ok">Nova</span> ' : "") + seloPrazo(o);
+  }
+  function seloPrazo(o) {
     const d = diasAte(o.data_encerramento_proposta);
     if (d === null) return '<span class="tag off">Prazo não informado</span>';
     if (d < 0) return '<span class="tag off">Encerrada</span>';
@@ -226,10 +259,14 @@
       </div></details>`;
   }
 
-  function itemOpp(o) {
+  function itemOpp(o) { return cartao(o, ""); } // não usar direto em .map(): ele passaria o índice como 2º argumento
+
+  function cartao(o, extra) {
     const link = linkSeguro(o.link_pncp);
     const proposta = linkSeguro(o.link_origem);
     const c = compat(o);
+    const id = o.numero_controle_pncp;
+    const salvo = estaSalvo(id);
     return `<article class="opp">
       <div>
         <h3>${esc(o.objeto)}</h3>
@@ -249,15 +286,18 @@
         <div class="acoes">
           ${link ? `<a class="btn sm" href="${esc(link)}" target="_blank" rel="noopener noreferrer">Ver edital</a>` : '<span class="small muted">Sem link (demonstração)</span>'}
           ${proposta ? `<a class="btn sm primary" href="${esc(proposta)}" target="_blank" rel="noopener noreferrer">Enviar proposta</a>` : ""}
+          ${id ? `<button class="btn sm${salvo ? " ligado" : ""}" data-acao="salvar" data-id="${esc(id)}" aria-pressed="${salvo}">${salvo ? "Acompanhando ✓" : "Acompanhar"}</button>` : ""}
         </div>
       </div>
+      ${extra}
       ${guia(o)}
     </article>`;
   }
 
-  function cabecalho(titulo, sub, extra) {
+  function cabecalho(titulo, sub, extra, semAviso) {
     return `<div class="topline"><div><h1>${esc(titulo)}</h1><p>${esc(sub)}</p></div><div class="no-print">${extra || ""}</div></div>
-      ${S.demo ? '<div class="banner"><b>Dados de demonstração.</b> As oportunidades abaixo são fictícias, só para você testar o sistema. Rode o coletor para trazer compras reais do PNCP.</div>' : ""}`;
+      ${S.coleta && S.coleta.parcial && !S.demo && !semAviso ? '<div class="banner"><b>Atualização incompleta.</b> Na última coleta algumas consultas ao PNCP falharam (' + esc(S.coleta.n_erros || "") + '). Parte das oportunidades pode estar faltando ou desatualizada; a próxima coleta tenta de novo.</div>' : ""}
+      ${S.demo && !semAviso ? '<div class="banner"><b>Dados de demonstração.</b> As oportunidades abaixo são fictícias, só para você testar o sistema. Rode o coletor para trazer compras reais do PNCP.</div>' : ""}`;
   }
 
   /* ------------------------------------------------ telas */
@@ -266,6 +306,8 @@
     const urgentes = ordenar(ab.filter((o) => { const d = diasAte(o.data_encerramento_proposta); return d !== null && d <= 7; }), "prazo").slice(0, 5);
     const recentes = ordenar(ab, "recentes").slice(0, 5);
     const meu = S.perfil.tipo === "empresa" ? ordenar(ab, "compat").filter((o) => (compat(o) || 0) >= 60).slice(0, 5) : [];
+    const prazosSalvos = ordenar(Object.entries(S.salvos).filter(([, r]) => STATUS_ATIVOS.includes(r.status)).map(([id, r]) => atual(r, id))
+      .filter((o) => { const d = diasAte(o.data_encerramento_proposta); return d !== null && d >= 0; }), "prazo").slice(0, 5);
     return cabecalho("Painel", "Visão geral das compras públicas monitoradas.", '<a class="btn primary" href="#radar">Abrir radar</a>') + `
     <section class="grid kpis" aria-label="Indicadores">
       <div class="card kpi"><div class="l">Oportunidades abertas</div><div class="v">${ab.length}</div></div>
@@ -277,6 +319,7 @@
       <div class="card"><h2>Por categoria</h2>${barras(contar(ab, "categoria"), (k) => CATEGORIAS[k] || k)}</div>
       <div class="card"><h2>Estados com mais oportunidades</h2>${barras(contar(ab, "uf").slice(0, 8), (k) => k)}</div>
     </section>
+    ${prazosSalvos.length ? `<section class="card" style="margin-top:16px"><h2>Seus próximos prazos</h2>${prazosSalvos.map(itemOpp).join("")}<p style="margin:12px 0 0"><a href="#acompanhar">Ver todas as oportunidades que você acompanha</a></p></section>` : ""}
     ${meu.length ? `<section class="card" style="margin-top:16px"><h2>Combinam com o perfil da sua empresa</h2>${meu.map(itemOpp).join("")}</section>` : ""}
     <section class="grid two" style="margin-top:16px">
       <div class="card"><h2>Encerram nos próximos 7 dias</h2>${urgentes.length ? urgentes.map(itemOpp).join("") : '<p class="empty">Nada encerrando nesta semana.</p>'}</div>
@@ -298,6 +341,7 @@
       <div class="field"><label for="f-vmin">Valor mínimo (R$)</label><input id="f-vmin" name="vmin" type="number" min="0" step="1000" value="${esc(f.vmin)}"></div>
       <div class="field"><label for="f-vmax">Valor máximo (R$)</label><input id="f-vmax" name="vmax" type="number" min="0" step="1000" value="${esc(f.vmax)}"></div>
       <div class="field"><label for="f-prazo">Prazo</label><select id="f-prazo" name="prazo">${opt("", "Qualquer", f.prazo)}${opt("3", "Até 3 dias", f.prazo)}${opt("7", "Até 7 dias", f.prazo)}${opt("15", "Até 15 dias", f.prazo)}${opt("30", "Até 30 dias", f.prazo)}</select></div>
+      <div class="field"><label for="f-novas">Novidades</label><select id="f-novas" name="novas">${opt("", "Todas", f.novas)}${opt("1", "Só as novas (24 h)", f.novas)}</select></div>
       <div class="field"><label for="f-ordem">Ordenar por</label><select id="f-ordem" name="ordem">${opt("prazo", "Prazo mais próximo", f.ordem)}${opt("valor", "Maior valor", f.ordem)}${opt("recentes", "Mais recentes", f.ordem)}${S.perfil.tipo === "empresa" ? opt("compat", "Compatibilidade", f.ordem) : ""}</select></div>
       <div class="field"><button type="button" class="btn" data-acao="limpar">Limpar filtros</button></div>
     </form>
@@ -335,7 +379,7 @@
             </ul></div>`;
     }
     const ufsBase = [...new Set(S.dados.map((o) => o.uf).filter(Boolean))].sort();
-    const cobertura = `<p class="muted small" style="margin:0 2px 16px">Base atual: <b>${S.dados.length}</b> compras${ufsBase.length ? " de " + ufsBase.length + " estado" + (ufsBase.length === 1 ? "" : "s") + " (" + esc(ufsBase.join(", ")) + ")" : ""}${S.geradoEm ? ", atualizada em " + esc(dataBR(S.geradoEm)) : ""}. A busca procura no texto do objeto, no órgão e na cidade.</p>`;
+    const cobertura = `<p class="muted small" style="margin:0 2px 16px">Base atual: <b>${S.dados.length}</b> compras${ufsBase.length ? " de " + ufsBase.length + " estado" + (ufsBase.length === 1 ? "" : "s") + " (" + esc(ufsBase.join(", ")) + ")" : ""}${S.geradoEm ? ", atualizada em " + esc(dataHoraBR(S.geradoEm)) : ""}. A busca procura no texto do objeto, no órgão e na cidade.</p>`;
     return `
     ${S.demo ? '<div class="banner"><b>Dados de demonstração.</b> Resultados fictícios para teste.</div>' : ""}
     <section class="hero">
@@ -381,7 +425,7 @@
       <div class="card"><h2>Por estado</h2>${barras(contar(ab, "uf").slice(0, 8), (k) => k)}</div>
     </section>
     <section class="card" style="margin-top:16px"><h2>Maiores oportunidades do período</h2>${topValor.length ? topValor.map(itemOpp).join("") : '<p class="empty">Sem oportunidades neste período.</p>'}</section>
-    <p class="muted small" style="margin-top:14px">Fonte: ${esc(S.fonte || "PNCP")}${S.geradoEm ? " · atualizado em " + esc(dataBR(S.geradoEm)) : ""}. Confirme sempre as informações no edital original.</p>`;
+    <p class="muted small" style="margin-top:14px">Fonte: ${esc(S.fonte || "PNCP")}${S.geradoEm ? " · atualizado em " + esc(dataHoraBR(S.geradoEm)) : ""}. Confirme sempre as informações no edital original.</p>`;
   }
 
   function vConta() {
@@ -437,7 +481,76 @@
   }
 
   /* ------------------------------------------------ roteamento e eventos */
-  const VIEWS = { painel: vPainel, radar: vRadar, pesquisa: vPesquisa, relatorios: vRelatorios, conta: vConta };
+  /* ------------------------------------------------ telas: acompanhar, ajuda, planos */
+  function vAcompanhar() {
+    const regs = Object.keys(S.salvos).map((id) => ({ id, reg: S.salvos[id], o: atual(S.salvos[id], id), naBase: S.dados.some((x) => x.numero_controle_pncp === id) }));
+    const cont = {}; Object.keys(STATUS).forEach((k) => { cont[k] = regs.filter((r) => r.reg.status === k).length; });
+    const f = S.acompFiltro;
+    const prazo = (r) => String(r.o.data_encerramento_proposta || "9");
+    const lista = regs.filter((r) => !f || r.reg.status === f).sort((a, b) => {
+      const ka = STATUS_ATIVOS.includes(a.reg.status) ? 0 : 1, kb = STATUS_ATIVOS.includes(b.reg.status) ? 0 : 1;
+      return ka !== kb ? ka - kb : prazo(a).localeCompare(prazo(b));
+    });
+    const chips = [["", "Todas", regs.length]].concat(Object.entries(STATUS).map(([k, v]) => [k, v, cont[k]]))
+      .map(([k, v, n]) => `<button class="chip${f === k ? " ativo" : ""}" data-acao="acfiltro" data-v="${k}" aria-pressed="${f === k}">${esc(v)} (${n})</button>`).join("");
+    const controles = (r) => `<div class="acomp">
+      <div class="field"><label for="st-${esc(r.id)}">Situação</label>
+        <select id="st-${esc(r.id)}" class="status-sel" data-id="${esc(r.id)}">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${r.reg.status === k ? " selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
+      <div class="field" style="flex:1;min-width:220px"><label for="nt-${esc(r.id)}">Anotações</label>
+        <textarea id="nt-${esc(r.id)}" class="nota" data-id="${esc(r.id)}" rows="2" maxlength="500" placeholder="Ex.: falta a certidão estadual; pedir preço ao fornecedor">${esc(r.reg.nota)}</textarea></div>
+      <button class="btn sm" data-acao="remover" data-id="${esc(r.id)}">Remover da lista</button>
+      ${r.naBase ? "" : '<p class="small muted" style="flex-basis:100%;margin:0">Esta oportunidade saiu da base atual. Mostrando os dados de quando você a salvou.</p>'}
+    </div>`;
+    return cabecalho("Minhas oportunidades", "Acompanhe cada licitação, do interesse até o resultado.", '<a class="btn primary" href="#radar">Encontrar oportunidades</a>') + `
+      <p class="muted small" style="margin:0 2px 14px">Salvo neste navegador. Com o login (plano pago), o acompanhamento ficará guardado na nuvem e disponível em qualquer aparelho.</p>
+      ${regs.length ? `<div class="chips no-print" style="margin-bottom:14px">${chips}</div>` : ""}
+      <section class="card">${lista.length ? lista.map((r) => cartao(r.o, controles(r))).join("")
+        : regs.length ? '<p class="empty">Nenhuma oportunidade nessa situação.</p>'
+        : '<p class="empty">Você ainda não acompanha nenhuma oportunidade.<br>No <a href="#radar">Radar</a>, clique em “Acompanhar” nas que interessam. Elas aparecem aqui, com a situação e suas anotações.</p>'}</section>`;
+  }
+
+  function vAjuda() {
+    if (!CONTEUDO.faq.length) {
+      return cabecalho("Central de ajuda", "Respostas para as dúvidas mais comuns.", "", true) + `<div class="card"><h2>Não foi possível carregar as respostas</h2>
+        <p class="muted" style="margin:8px 0 0;max-width:70ch">O arquivo <b>conteudo.js</b> não foi encontrado. Confira se ele está dentro da pasta <b>web</b>, ao lado do <b>app.js</b> e do <b>index.html</b>, e aperte Ctrl + F5.</p></div>`;
+    }
+    const q = norm(S.ajudaQ.trim());
+    const grupos = CONTEUDO.faq.map((g) => ({ grupo: g.grupo, itens: g.itens.filter((i) => !q || norm(i.p + " " + i.r).includes(q)) })).filter((g) => g.itens.length);
+    const total = grupos.reduce((n, g) => n + g.itens.length, 0);
+    const paragrafos = (t) => String(t).split(/\n\n/).map((p) => `<p>${esc(p)}</p>`).join("");
+    return cabecalho("Central de ajuda", "Respostas para as dúvidas mais comuns sobre a NEXORA e sobre compras públicas.", "", true) + `
+      <div class="field" style="max-width:520px;margin-bottom:6px"><label for="ajuda-q">Buscar nas respostas</label>
+        <input id="ajuda-q" type="search" value="${esc(S.ajudaQ)}" placeholder="Ex.: MEI, pregão, documentos" autocomplete="off"></div>
+      <p class="muted small" style="margin:0 2px 14px" role="status">${q ? total + " resposta" + (total === 1 ? "" : "s") + " encontrada" + (total === 1 ? "" : "s") : "Escolha uma pergunta ou use a busca."}</p>
+      ${grupos.length ? grupos.map((g) => `<section class="card faq" style="margin-bottom:16px"><h2>${esc(g.grupo)}</h2>
+        ${g.itens.map((i) => `<details${q ? " open" : ""}><summary>${esc(i.p)}</summary><div class="faq-r">${paragrafos(i.r)}</div></details>`).join("")}</section>`).join("")
+        : `<div class="card"><h2>Nenhuma resposta para “${esc(S.ajudaQ)}”</h2><p class="muted" style="margin:8px 0 0">Tente uma palavra mais simples (“documentos”, “MEI”, “prazo”) ou veja as perguntas por assunto, limpando a busca.</p></div>`}
+      <section class="card"><h2>Não encontrou sua dúvida?</h2>
+        ${emailContato
+          ? `<p class="muted" style="margin:8px 0 12px">Escreva para a gente. Quando a pergunta for comum, ela entra aqui na Central de ajuda.</p><a class="btn primary" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Dúvida sobre a NEXORA")}">Enviar uma dúvida</a>`
+          : '<p class="muted" style="margin:8px 0 0">O canal para enviar dúvidas será ativado em breve.</p>'}
+      </section>
+      <p class="muted small" style="margin-top:14px">As respostas são orientações gerais e não substituem o edital nem aconselhamento jurídico ou contábil.</p>`;
+  }
+
+  function vPlanos() {
+    if (!CONTEUDO.planos.pago.length && !CONTEUDO.planos.gratis.length) {
+      return cabecalho("Planos", "O que já funciona hoje e o que está sendo construído.", "", true) + `<div class="card"><h2>Não foi possível carregar os planos</h2>
+        <p class="muted" style="margin:8px 0 0;max-width:70ch">O arquivo <b>conteudo.js</b> não foi encontrado na pasta <b>web</b>. Coloque-o ao lado do <b>app.js</b> e aperte Ctrl + F5.</p></div>`;
+    }
+    const ROT = { agora: ["Disponível agora", "ok"], parcial: ["Parcial", "warn"], andamento: ["Em desenvolvimento", "warn"], planejado: ["Planejado", "off"] };
+    const li = (i) => { const [txt, cls] = ROT[i.s] || ["", "off"]; return `<li><div><b>${esc(i.t)}</b> <span class="tag ${cls}">${esc(txt)}</span></div>${i.d ? `<p class="small muted" style="margin:2px 0 0">${esc(i.d)}</p>` : ""}</li>`; };
+    const corpo = encodeURIComponent("Olá! Quero ser avisado quando os planos da NEXORA estiverem disponíveis.\n\nMinha empresa vende: ");
+    return cabecalho("Planos", "O que já funciona hoje e o que está sendo construído para o plano pago.", "", true) + `
+      <div class="note" style="margin-bottom:16px"><b>Nada é cobrado hoje.</b> Os planos e preços ainda estão sendo definidos e validados com empresas. Os itens abaixo mostram, com honestidade, o que já existe e o que ainda não.</div>
+      <section class="grid two">
+        <div class="card plano"><h2>Gratuito</h2><p class="muted small" style="margin:4px 0 8px">Para pesquisar e conhecer a plataforma.</p><ul>${CONTEUDO.planos.gratis.map(li).join("")}</ul></div>
+        <div class="card plano destaque"><h2>Plano pago</h2><p class="muted small" style="margin:4px 0 8px">Para empresas que querem ganhar tempo e vender mais. Preço em definição.</p><ul>${CONTEUDO.planos.pago.map(li).join("")}</ul>
+          ${emailContato ? `<p style="margin:14px 0 0"><a class="btn primary" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Quero ser avisado sobre os planos")}&body=${corpo}">Quero ser avisado</a></p>` : ""}</div>
+      </section>`;
+  }
+
+  const VIEWS = { painel: vPainel, radar: vRadar, pesquisa: vPesquisa, acompanhar: vAcompanhar, relatorios: vRelatorios, planos: vPlanos, ajuda: vAjuda, conta: vConta };
   function viewAtual() { const h = location.hash.replace("#", ""); return VIEWS[h] ? h : "pesquisa"; }
 
   function render(manterFoco) {
@@ -456,10 +569,15 @@
   document.addEventListener("input", (e) => {
     const t = e.target;
     if (t.closest("#filtros")) { S.filtros[t.name] = t.value; S.mostrar = PAGINA; render(true); }
+    if (t.id === "ajuda-q") { S.ajudaQ = t.value; render(true); }
+    if (t.classList && t.classList.contains("nota") && S.salvos[t.dataset.id]) { S.salvos[t.dataset.id].nota = t.value; gravarSalvos(); } // sem redesenhar, para não perder o cursor
   });
   document.addEventListener("change", (e) => {
     const t = e.target;
     if (t.id === "r-dias") { S.relDias = t.value; render(); }
+    if (t.classList && t.classList.contains("status-sel") && S.salvos[t.dataset.id] && STATUS[t.value]) {
+      S.salvos[t.dataset.id].status = t.value; gravarSalvos(); render();
+    }
     if (t.id === "busca-cat") {
       // trocar a categoria vale para o que já está digitado no campo (e não apaga o texto)
       S.buscaCat = t.value; S.busca = $("#busca").value;
@@ -488,8 +606,11 @@
     const b = e.target.closest("[data-acao],[data-busca]"); if (!b) return;
     if (b.dataset.busca) { S.busca = b.dataset.busca; render(); return; }
     const a = b.dataset.acao;
-    if (a === "limpar") { S.filtros = { q: "", uf: "", cat: "", tipo: "", vmin: "", vmax: "", prazo: "", ordem: "prazo" }; S.mostrar = PAGINA; render(); }
+    if (a === "limpar") { S.filtros = { q: "", uf: "", cat: "", tipo: "", vmin: "", vmax: "", prazo: "", novas: "", ordem: "prazo" }; S.mostrar = PAGINA; render(); }
     if (a === "mais") { S.mostrar += PAGINA; render(); }
+    if (a === "salvar") { alternarSalvo(b.dataset.id); render(); }
+    if (a === "remover") { delete S.salvos[b.dataset.id]; gravarSalvos(); render(); }
+    if (a === "acfiltro") { S.acompFiltro = b.dataset.v || ""; render(); }
     if (a === "imprimir") window.print();
     if (a === "csv") {
       const lista = b.dataset.fonte === "radar" ? ordenar(filtrar(abertas(), S.filtros), S.filtros.ordem)

@@ -28,7 +28,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -160,7 +160,9 @@ def normalizar_registro(r: dict, incluir_outros: bool = False) -> dict | None:
 
 # ---------------------------------------------------------------- coleta
 def coletar(modo: str, ufs: list[str | None], modalidades: list[int], dias: int,
-            limite_paginas: int | None, verboso: bool = True, incluir_outros: bool = False) -> list[dict]:
+            limite_paginas: int | None, verboso: bool = True, incluir_outros: bool = False,
+            erros: list[str] | None = None) -> list[dict]:
+    """Coleta no PNCP. Se `erros` for passada, recebe uma frase por consulta que falhou."""
     hoje = date.today()
     vistos: dict[str, dict] = {}
     total_lidos = 0
@@ -190,6 +192,8 @@ def coletar(modo: str, ufs: list[str | None], modalidades: list[int], dias: int,
                         aceitos += 1
             except Exception as e:  # uma UF/modalidade com erro não derruba a coleta toda
                 print(f"  ! {uf or 'BR'} modalidade {mod}: {e}", file=sys.stderr)
+                if erros is not None:
+                    erros.append(f"{uf or 'BR'}/modalidade {mod}: {str(e)[:120]}")
             total_lidos += lidos
             if verboso:
                 print(f"  {uf or 'BR':>2} | modalidade {mod:>2} | lidos {lidos:>5} | relevantes {aceitos:>4}")
@@ -200,26 +204,67 @@ def coletar(modo: str, ufs: list[str | None], modalidades: list[int], dias: int,
 
 
 # ---------------------------------------------------------------- saídas
-def salvar_json(linhas: list[dict], caminho: Path, acrescentar: bool = False) -> None:
+def _agora_utc() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _ler_oportunidades(caminho: Path) -> tuple[list[dict], dict]:
+    try:
+        pacote = json.loads(caminho.read_text(encoding="utf-8"))
+        return pacote.get("oportunidades", []), pacote.get("coleta") or {}
+    except (ValueError, OSError):
+        return [], {}
+
+
+def salvar_json(linhas: list[dict], caminho: Path, acrescentar: bool = False,
+                memoria: bool = False, modo: str = "abertas", erros: list[str] | None = None) -> None:
+    """Grava o JSON do site.
+
+    acrescentar: junta ao arquivo existente (o mais novo vence).
+    memoria: usa o arquivo existente como lembrança da última coleta para
+      - marcar `primeiro_visto` (só o que realmente apareceu agora é "novo");
+      - não perder dados: na coleta leve (modo publicacao) ou quando alguma consulta falhou,
+        o que já estava no arquivo é mantido e só atualizado/acrescido.
+    """
     caminho.parent.mkdir(parents=True, exist_ok=True)
-    if acrescentar and caminho.exists():
-        try:
-            antigas = json.loads(caminho.read_text(encoding="utf-8")).get("oportunidades", [])
-        except (ValueError, OSError):
-            antigas = []
-        por_id = {o["numero_controle_pncp"]: o for o in antigas if o.get("numero_controle_pncp")}
+    agora = _agora_utc()
+    erros = erros or []
+    antigas, meta_antiga = ([], {})
+    if (acrescentar or memoria) and caminho.exists():
+        antigas, meta_antiga = _ler_oportunidades(caminho)
+    por_id_antigo = {o["numero_controle_pncp"]: o for o in antigas if o.get("numero_controle_pncp")}
+
+    juntar = acrescentar or (memoria and (modo == "publicacao" or bool(erros)))
+    if juntar:
+        por_id = dict(por_id_antigo)
         por_id.update({o["numero_controle_pncp"]: o for o in linhas})  # o mais novo vence
         linhas = list(por_id.values())
+
+    if memoria and por_id_antigo:  # na primeira vez não há "antes": nada é marcado como novo
+        for o in linhas:
+            antigo = por_id_antigo.get(o["numero_controle_pncp"])
+            o["primeiro_visto"] = (antigo or {}).get("primeiro_visto") or (agora if not antigo else None)
     linhas = [dict(o, objeto=(o["objeto"][:OBJETO_MAX_JSON] + "…") if len(o.get("objeto") or "") > OBJETO_MAX_JSON else o.get("objeto"),
                    informacao_complementar=None) for o in linhas]
+
+    completa = modo == "abertas" and not erros
+    coleta = {
+        "modo": modo,
+        "erros": erros[:30],
+        "n_erros": len(erros),
+        "parcial": bool(erros),
+        "ultima_completa_em": agora if completa else meta_antiga.get("ultima_completa_em"),
+    }
     pacote = {
-        "gerado_em": datetime.now().isoformat(timespec="seconds"),
+        "gerado_em": agora,
         "fonte": "PNCP — API de consulta (dados abertos)",
         "total": len(linhas),
+        "coleta": coleta,
         "oportunidades": sorted(linhas, key=lambda x: x.get("data_encerramento_proposta") or "9999"),
     }
-    caminho.write_text(json.dumps(pacote, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"JSON gravado em {caminho} ({len(linhas)} oportunidades)")
+    caminho.write_text(json.dumps(pacote, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    novas = sum(1 for o in linhas if o.get("primeiro_visto") == agora)
+    print(f"JSON gravado em {caminho} ({len(linhas)} oportunidades, {novas} novas, {len(erros)} consultas com erro)")
 
 
 def reclassificar(caminho: Path, incluir_outros: bool = False) -> int:
@@ -286,6 +331,8 @@ def main(argv=None) -> int:
                    help="guarda também compras que não caem em nenhuma categoria (base bem maior)")
     p.add_argument("--acrescentar", action="store_true",
                    help="junta ao arquivo JSON existente em vez de sobrescrever (útil para somar o histórico)")
+    p.add_argument("--memoria", action="store_true",
+                   help="usa o JSON existente como memória: marca o que é novo e não perde dados em coleta leve ou com falhas")
     p.add_argument("--reclassificar", action="store_true",
                    help="não coleta nada: reaplica categorias e tipo ao JSON existente (rápido, sem internet)")
     p.add_argument("--saida", choices=["json", "supabase", "ambos"], default="json")
@@ -300,10 +347,13 @@ def main(argv=None) -> int:
     mods = [int(m) for m in a.modalidades.split(",") if m.strip()]
 
     print(f"NEXORA coletor | modo={a.modo} | UFs={ufs} | modalidades={mods}")
-    linhas = coletar(a.modo, ufs, mods, a.dias, a.limite_paginas, incluir_outros=a.incluir_outros)
+    erros: list[str] = []
+    linhas = coletar(a.modo, ufs, mods, a.dias, a.limite_paginas, incluir_outros=a.incluir_outros, erros=erros)
+    if erros:
+        print(f"ATENÇÃO: {len(erros)} consulta(s) falharam; a coleta ficou parcial.", file=sys.stderr)
 
     if a.saida in ("json", "ambos"):
-        salvar_json(linhas, Path(a.arquivo), a.acrescentar)
+        salvar_json(linhas, Path(a.arquivo), a.acrescentar, a.memoria, a.modo, erros)
     if a.saida in ("supabase", "ambos"):
         enviar_supabase(linhas)
     return 0

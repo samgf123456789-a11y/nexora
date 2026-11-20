@@ -2,13 +2,15 @@
 
 Rodar:  python3 -m unittest collector/test_coletor.py -v
 """
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from categorias import classificar, normalizar  # noqa: E402
-from pncp_collector import normalizar_registro  # noqa: E402
+from categorias import classificar, classificar_tipo, normalizar  # noqa: E402
+from pncp_collector import normalizar_registro, salvar_json  # noqa: E402
 
 REGISTRO_EXEMPLO = {
     "numeroControlePNCP": "13915632000127-1-000207/2026",
@@ -96,6 +98,54 @@ class TestClassificacao(unittest.TestCase):
         self.assertEqual(classificar("Concessão de uso de espaço público para exploração de quiosque")["categoria"], "outros")
 
 
+class TestTipo(unittest.TestCase):
+    def _tipo(self, texto):
+        c = classificar(texto)
+        return classificar_tipo(texto, c["categoria"], c["subcategorias"])
+
+    def test_obra_de_engenharia(self):
+        # o caso real do print: quadra comunitária
+        txt = ("Contratação de empresa especializada para execução de serviços de engenharia, execução de obra "
+               "de engenharia destinada à construção de Espaço Esportivo Comunitário, com fornecimento de mão de obra, materiais")
+        self.assertEqual(self._tipo(txt), "obras")
+
+    def test_aquisicao_de_produtos(self):
+        self.assertEqual(self._tipo("Registro de preços para aquisição de cadeiras giratórias e mesas"), "produtos")
+        self.assertEqual(self._tipo("Registro de preços visando a aquisição de papel sulfite A4"), "produtos")
+
+    def test_material_de_construcao_e_produto(self):
+        self.assertEqual(self._tipo("Aquisição de cimento, areia e brita para manutenção de vias"), "produtos")
+
+    def test_servicos(self):
+        self.assertEqual(self._tipo("Contratação de empresa para prestação de serviços de vigilância patrimonial"), "servicos")
+        self.assertEqual(self._tipo("Locação de impressoras com manutenção"), "servicos")
+
+    def test_padrao_e_produtos(self):
+        self.assertEqual(self._tipo("Papel sulfite A4 e canetas"), "produtos")
+
+
+class TestReclassificar(unittest.TestCase):
+    def test_reaplica_categoria_e_tipo_sem_internet(self):
+        import json
+        import tempfile
+        from pncp_collector import reclassificar
+        antigas = [
+            {"numero_controle_pncp": "1", "objeto": "Aquisição de cadeiras", "categoria": "errada", "valor_estimado": 10},
+            {"numero_controle_pncp": "2", "objeto": "Execução de obra de pavimentação", "categoria": "errada"},
+            {"numero_controle_pncp": "3", "objeto": "Concessão de quiosque em praça", "categoria": "errada"},
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "o.json"
+            f.write_text(json.dumps({"oportunidades": antigas}), encoding="utf-8")
+            n = reclassificar(f)
+            saida = {o["numero_controle_pncp"]: o for o in json.loads(f.read_text(encoding="utf-8"))["oportunidades"]}
+        self.assertEqual(n, 2)
+        self.assertEqual(saida["1"]["categoria"], "mobiliario")
+        self.assertEqual(saida["1"]["tipo"], "produtos")
+        self.assertEqual(saida["2"]["tipo"], "obras")
+        self.assertNotIn("3", saida)
+
+
 class TestNormalizacao(unittest.TestCase):
     def test_registro_completo(self):
         linha = normalizar_registro(REGISTRO_EXEMPLO)
@@ -127,6 +177,53 @@ class TestNormalizacao(unittest.TestCase):
         self.assertIsNotNone(linha)
         self.assertIsNone(linha["link_pncp"])
         self.assertIsNone(linha["uf"])
+
+
+class TestMemoria(unittest.TestCase):
+    """Coleta leve + memória: marcar o que é novo sem perder o que já se sabia."""
+
+    def _linha(self, id_, **extra):
+        return dict({"numero_controle_pncp": id_, "objeto": "Aquisição de papel", "data_encerramento_proposta": "2026-12-01T10:00:00"}, **extra)
+
+    def _ler(self, caminho):
+        return json.loads(caminho.read_text(encoding="utf-8"))
+
+    def test_primeira_vez_nao_marca_nada_como_novo(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = Path(d) / "o.json"
+            salvar_json([self._linha("a")], c, memoria=True)
+            self.assertIsNone(self._ler(c)["oportunidades"][0].get("primeiro_visto"))
+
+    def test_leve_soma_marca_nova_e_nao_perde(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = Path(d) / "o.json"
+            salvar_json([self._linha("a"), self._linha("b")], c, memoria=True)
+            salvar_json([self._linha("b"), self._linha("c")], c, memoria=True, modo="publicacao")
+            r = {o["numero_controle_pncp"]: o for o in self._ler(c)["oportunidades"]}
+            self.assertEqual(set(r), {"a", "b", "c"})           # "a" não sumiu
+            self.assertTrue(r["c"]["primeiro_visto"])           # só "c" é novo
+            self.assertFalse(r["b"].get("primeiro_visto"))
+            salvar_json([self._linha("c")], c, memoria=True, modo="publicacao")
+            r2 = {o["numero_controle_pncp"]: o for o in self._ler(c)["oportunidades"]}
+            self.assertEqual(r2["c"]["primeiro_visto"], r["c"]["primeiro_visto"])  # a marca é mantida
+
+    def test_completa_sem_erro_substitui_e_com_erro_preserva(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = Path(d) / "o.json"
+            salvar_json([self._linha("a"), self._linha("b")], c, memoria=True)
+            salvar_json([self._linha("b")], c, memoria=True)  # "a" foi encerrada
+            self.assertEqual(self._ler(c)["total"], 1)
+            salvar_json([self._linha("z")], c, memoria=True, erros=["SP/modalidade 6: timeout"])
+            pacote = self._ler(c)
+            self.assertEqual(pacote["total"], 2)                # nada perdido por causa da falha
+            self.assertTrue(pacote["coleta"]["parcial"])
+            self.assertEqual(pacote["coleta"]["n_erros"], 1)
+
+    def test_gerado_em_em_utc(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = Path(d) / "o.json"
+            salvar_json([self._linha("a")], c)
+            self.assertTrue(self._ler(c)["gerado_em"].endswith("Z"))
 
 
 if __name__ == "__main__":

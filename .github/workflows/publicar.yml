@@ -1,12 +1,21 @@
 name: Coletar e publicar o site
 
-# Todo dia: coleta as compras abertas no PNCP e publica o site atualizado no GitHub Pages.
-# Nenhum arquivo é gravado no repositório, então ele não cresce a cada dia.
+# Duas rotinas:
+#  - TODO DIA às 06h (Brasília): coleta completa de todas as compras abertas (leva ~50 min).
+#  - DE HORA EM HORA: coleta leve, só o que foi publicado nas últimas 24h, somada ao que já se sabe.
+# O resultado fica guardado no "cache" do GitHub entre uma execução e outra, então nada é gravado
+# no repositório e ele não cresce. Compras novas ganham a marca "Nova" no site.
 
 on:
   schedule:
-    - cron: "0 9 * * *"   # 06h no horário de Brasília
-  workflow_dispatch: {}    # botão "Run workflow" para rodar na hora
+    - cron: "0 9 * * *"    # 06h em Brasília: coleta completa
+    - cron: "20 * * * *"   # a cada hora (minuto 20): coleta leve
+  workflow_dispatch:
+    inputs:
+      completa:
+        description: "Forçar a coleta completa (leva ~50 min)"
+        type: boolean
+        default: false
   push:
     branches: [main]       # republica quando você muda algum arquivo
 
@@ -33,15 +42,42 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Se o PNCP recusar a coleta, o site é publicado mesmo assim com os dados que já estavam no
-      # repositório (ou com a demonstração). A data "atualizada em" na tela mostra se ficou velho.
-      - name: Coletar compras abertas (Brasil todo)
-        id: coleta
+      # Memória entre execuções: restaura o último JSON e, ao final, guarda o novo.
+      - name: Restaurar dados da última execução
+        id: memoria
+        uses: actions/cache@v4
+        with:
+          path: web/data/oportunidades.json
+          key: dados-${{ github.run_id }}
+          restore-keys: dados-
+
+      - name: Escolher o tipo de coleta
+        id: modo
+        run: |
+          COMPLETA=false
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 9 * * *" ]; then COMPLETA=true; fi
+          if [ "${{ github.event.inputs.completa }}" = "true" ]; then COMPLETA=true; fi
+          # sem memória (primeira vez ou cache apagado) não dá para fazer só a coleta leve
+          if [ "${{ steps.memoria.outputs.cache-matched-key }}" = "" ]; then COMPLETA=true; fi
+          echo "completa=$COMPLETA" >> "$GITHUB_OUTPUT"
+          echo "Coleta completa: $COMPLETA"
+
+      # Se o PNCP recusar a coleta, o site é publicado mesmo assim com os dados que já estavam
+      # guardados. A hora "atualizada em" na tela mostra se ficou velho.
+      - name: Coleta completa (Brasil todo)
+        id: completa
+        if: steps.modo.outputs.completa == 'true'
         continue-on-error: true
-        run: python collector/pncp_collector.py --modo abertas
+        run: python collector/pncp_collector.py --modo abertas --memoria
+
+      - name: Coleta leve (publicadas nas últimas 24h)
+        id: leve
+        if: steps.modo.outputs.completa != 'true'
+        continue-on-error: true
+        run: python collector/pncp_collector.py --modo publicacao --dias 1 --memoria
 
       - name: Avisar se a coleta falhou
-        if: steps.coleta.outcome == 'failure'
+        if: steps.completa.outcome == 'failure' || steps.leve.outcome == 'failure'
         run: echo "::warning::A coleta do PNCP falhou. O site foi publicado com os dados anteriores."
 
       - uses: actions/configure-pages@v5

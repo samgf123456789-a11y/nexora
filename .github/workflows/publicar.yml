@@ -57,8 +57,8 @@ jobs:
           COMPLETA=false
           if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 9 * * *" ]; then COMPLETA=true; fi
           if [ "${{ github.event.inputs.completa }}" = "true" ]; then COMPLETA=true; fi
-          # sem memória (primeira vez ou cache apagado) não dá para fazer só a coleta leve
-          if [ "${{ steps.memoria.outputs.cache-matched-key }}" = "" ]; then COMPLETA=true; fi
+          # sem memória (primeira vez, cache apagado ou arquivo de uma versão antiga) não dá para fazer só a coleta leve
+          if ! grep -q '"ultima_completa_em":"' web/data/oportunidades.json 2>/dev/null; then COMPLETA=true; fi
           echo "completa=$COMPLETA" >> "$GITHUB_OUTPUT"
           echo "Coleta completa: $COMPLETA"
 

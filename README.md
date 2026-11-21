@@ -77,6 +77,22 @@ Cada execução registra o resultado em `coleta_log.txt`. Para testar na hora: `
 
 Com o site público, quem acessar vê todos os dados e tudo o que está no repositório. Para a versão paga, a hospedagem e o login terão de mudar.
 
+## Segurança
+
+O que o código faz (ver também `SECURITY.md`):
+- Todo texto que vem do PNCP é escapado antes de aparecer; a tela só recebe lista de objetos com identificador válido.
+- Política de Segurança de Conteúdo (CSP) no `index.html`: só scripts do próprio site; conexões só ao próprio site e ao Supabase.
+- Só links `http`/`https`; links externos com `noopener noreferrer`; CSV protegido contra fórmulas do Excel.
+- Anti-moldura (`web/seguranca.js`): o site não aparece dentro de outro site.
+- A publicação no GitHub tem duas etapas: quem coleta só lê o repositório; quem publica só pode publicar. O Dependabot avisa de versões novas das ferramentas.
+- Banco: cada usuário só vê os próprios dados (RLS), e o campo `plano` só o servidor altera (senão qualquer um se daria o plano pago).
+
+Limites que não dependem do código:
+- O GitHub Pages não deixa configurar cabeçalhos do servidor; por isso a CSP vai em `<meta>` e o anti-moldura é feito por script.
+- O banco de dados (`supabase/schema.sql`) foi escrito e revisado, mas **ainda não foi executado nem testado em um banco real**.
+- Login, pagamento e e-mail ainda não existem; terão nova revisão de segurança antes de irem ao ar.
+- Falta o que só o dono do repositório pode ativar no GitHub: verificação em duas etapas, proteção da branch `main` e alertas de segurança.
+
 ## Ativando login e banco (Supabase)
 
 1. Crie um projeto em supabase.com e execute `supabase/schema.sql` no SQL Editor.

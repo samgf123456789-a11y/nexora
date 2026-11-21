@@ -119,6 +119,28 @@ drop policy if exists "favoritos proprios" on favoritos;
 create policy "favoritos proprios" on favoritos for all
   using (auth.uid() = usuario_id) with check (auth.uid() = usuario_id);
 
+-- ---------------------------------------------------------------
+-- Travas extras (importante para o plano pago)
+-- ---------------------------------------------------------------
+-- A política "perfil proprio" deixa o usuário alterar a própria linha. Sem as linhas abaixo ele poderia
+-- mudar a coluna "plano" e se dar o plano pago de graça. Aqui o usuário só mexe nas colunas de perfil;
+-- "plano" só pode ser alterado pelo servidor (chave service_role, usada pelo sistema de pagamento).
+revoke insert, update on perfis from anon, authenticated;
+grant insert (id, tipo, razao_social, cnpj, ufs_interesse, categorias_interesse, palavras_chave, valor_min, valor_max)
+  on perfis to authenticated;
+grant update (tipo, razao_social, cnpj, ufs_interesse, categorias_interesse, palavras_chave, valor_min, valor_max)
+  on perfis to authenticated;
+-- Oportunidades: leitura para todos, gravação só pelo coletor (service_role).
+revoke insert, update, delete on oportunidades from anon, authenticated;
+-- Limites contra abuso (textos e listas enormes)
+alter table perfis drop constraint if exists perfis_limites;
+alter table perfis add constraint perfis_limites check (
+  coalesce(length(razao_social), 0) <= 200 and coalesce(length(cnpj), 0) <= 20
+  and coalesce(cardinality(ufs_interesse), 0) <= 27 and coalesce(cardinality(categorias_interesse), 0) <= 30
+  and coalesce(cardinality(palavras_chave), 0) <= 50);
+alter table buscas_salvas drop constraint if exists buscas_limites;
+alter table buscas_salvas add constraint buscas_limites check (length(nome) <= 100 and pg_column_size(filtros) <= 4000);
+
 drop policy if exists "buscas proprias" on buscas_salvas;
 create policy "buscas proprias" on buscas_salvas for all
   using (auth.uid() = usuario_id) with check (auth.uid() = usuario_id);

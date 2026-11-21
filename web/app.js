@@ -146,11 +146,18 @@
   /* ------------------------------------------------ dados */
   async function jget(url, opts) { const r = await fetch(url, opts); if (!r.ok) throw new Error(r.status); return r.json(); }
 
+  // Aceita só uma lista de objetos com identificador em texto simples; o resto é descartado.
+  const ID_OK = { test: (id) => /^[A-Za-z0-9._\/-]{1,80}$/.test(id) && !/^(__proto__|constructor|prototype)$/i.test(id) };
+  function dadosValidos(lista) {
+    if (!Array.isArray(lista)) return [];
+    return lista.filter((o) => o && typeof o === "object" && !Array.isArray(o) && typeof o.numero_controle_pncp === "string" && ID_OK.test(o.numero_controle_pncp));
+  }
+
   async function carregar() {
     if (TEM_SUPABASE) {
       try {
         const q = `${CFG.SUPABASE_URL}/rest/v1/oportunidades?select=*&order=data_encerramento_proposta.asc&limit=2000`;
-        S.dados = await jget(q, { headers: cabSupa() });
+        S.dados = dadosValidos(await jget(q, { headers: cabSupa() }));
         S.fonte = "PNCP (via Avanço Licitações)"; S.geradoEm = null; S.demo = false;
         return;
       } catch (e) { /* cai para arquivos */ }
@@ -159,7 +166,7 @@
       try {
         const j = await jget(arq);
         if (j.oportunidades && j.oportunidades.length) {
-          S.dados = j.oportunidades; S.demo = !!j.demo; S.geradoEm = j.gerado_em; S.coleta = j.coleta || null; S.fonte = j.fonte || "";
+          S.dados = dadosValidos(j.oportunidades); S.demo = !!j.demo; S.geradoEm = j.gerado_em; S.coleta = j.coleta || null; S.fonte = j.fonte || "";
           return;
         }
       } catch (e) { /* tenta o próximo */ }
@@ -617,7 +624,7 @@
   }
 
   const VIEWS = { quemsomos: vQuemSomos, painel: vPainel, radar: vRadar, pesquisa: vPesquisa, acompanhar: vAcompanhar, relatorios: vRelatorios, planos: vPlanos, ajuda: vAjuda, conta: vConta };
-  function viewAtual() { const h = location.hash.replace("#", ""); return VIEWS[h] ? h : "quemsomos"; }
+  function viewAtual() { const h = location.hash.replace("#", ""); return Object.prototype.hasOwnProperty.call(VIEWS, h) ? h : "quemsomos"; }
 
   function render(manterFoco) {
     const v = viewAtual();
@@ -674,8 +681,8 @@
     const a = b.dataset.acao;
     if (a === "limpar") { S.filtros = { q: "", uf: "", cat: "", tipo: "", vmin: "", vmax: "", prazo: "", novas: "", ordem: "prazo" }; S.mostrar = PAGINA; render(); }
     if (a === "mais") { S.mostrar += PAGINA; render(); }
-    if (a === "salvar") { alternarSalvo(b.dataset.id); render(); }
-    if (a === "remover") { delete S.salvos[b.dataset.id]; gravarSalvos(); render(); }
+    if (a === "salvar" && ID_OK.test(b.dataset.id || "")) { alternarSalvo(b.dataset.id); render(); }
+    if (a === "remover" && ID_OK.test(b.dataset.id || "")) { delete S.salvos[b.dataset.id]; gravarSalvos(); render(); }
     if (a === "acfiltro") { S.acompFiltro = b.dataset.v || ""; render(); }
     if (a === "imprimir") window.print();
     if (a === "csv") {

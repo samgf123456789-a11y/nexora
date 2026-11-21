@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Segurança: o navegador só executa scripts deste próprio site e só se conecta a ele (e ao Supabase, se for usado).
+     Se mudar para outro banco ou domínio, atualize "connect-src". -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; base-uri 'none'; object-src 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<!-- Impede que outro site coloque esta página dentro de uma moldura (clickjacking). seguranca.js libera a tela se estiver tudo certo. -->
+<style id="antiframe">html{display:none!important}</style>
+<noscript><style>html{display:block!important}</style></noscript>
+<script src="seguranca.js"></script>
 <title>Avanço Licitações — Encontre compras públicas antes da concorrência</title>
 <meta name="description" content="Veja quais órgãos públicos estão comprando o que a sua empresa vende, antes da concorrência. Pesquisa de produtos aberta a todos.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230F6B4F'/%3E%3Cpath d='M7 22l6-6 4 3 8-9' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M19 10h6v6' fill='none' stroke='%23F4C84A' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">

@@ -87,7 +87,13 @@
   };
   const dataHoraBR = (iso) => { const d = new Date(iso); return isNaN(d) ? "—" : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
   // "Nova" = apareceu na base nas últimas 24 horas (campo primeiro_visto, marcado pelo coletor)
-  const nova = (o) => { if (!o.primeiro_visto) return false; const t = Date.parse(o.primeiro_visto); return !isNaN(t) && Date.now() - t < 864e5; };
+  const nova = (o) => {
+    if (!o.primeiro_visto) return false;
+    const t = Date.parse(o.primeiro_visto);
+    if (isNaN(t) || Date.now() - t >= 864e5) return false;
+    const lim = new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10); // publicada há no máximo ~2 dias
+    return String(o.data_publicacao || "") >= lim;
+  };
   const horaBR = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); };
   const linkSeguro = (u) => (typeof u === "string" && /^https?:\/\//i.test(u)) ? u : null; // só http(s): bloqueia "javascript:"
   const soma = (a, f) => a.reduce((t, x) => t + (Number(f(x)) || 0), 0);

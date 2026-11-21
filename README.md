@@ -33,9 +33,9 @@ python collector/pncp_collector.py --reclassificar
 
 ## Ajuda, acompanhamento e planos
 
-- **Central de ajuda** (`#ajuda`): 25 perguntas e respostas com busca. Os textos ficam em `web/conteudo.js` e podem ser editados sem mexer no código (texto puro; linha em branco separa parágrafos).
+- **Central de ajuda** (`#ajuda`): 26 perguntas e respostas com busca. Os textos ficam em `web/conteudo.js` e podem ser editados sem mexer no código (texto puro; linha em branco separa parágrafos).
 - **Minhas oportunidades** (`#acompanhar`): botão "Acompanhar" em cada oportunidade; situação (interesse, preparando, enviada, ganhei, não ganhei) e anotações. **Fica salvo só no navegador**; versão na nuvem depende do login. A segurança de um plano pago não pode ficar só no site: a liberação por plano precisa de login e banco (Supabase) para valer.
-- **Planos** (`#planos`): mostra o que já funciona e o que ainda não, com selos. Sem preços, porque ainda não foram validados. Para ativar os botões "Enviar uma dúvida" e "Quero ser avisado", preencha `CONTATO_EMAIL` em `web/config.js`.
+- **Planos** (`#planos`): mostra o que já funciona e o que ainda não, com selos. Mostra o preço previsto do plano pago (R$ 7,99 por mês, definido em `web/conteudo.js`); ainda não há cobrança. Para ativar os botões "Enviar uma dúvida" e "Quero ser avisado", preencha `CONTATO_EMAIL` em `web/config.js`.
 
 ## No Radar
 

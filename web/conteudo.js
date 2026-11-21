@@ -15,7 +15,7 @@ window.NEXORA_CONTEUDO = {
         { p: "De onde vêm os dados?",
           r: "Do PNCP (Portal Nacional de Contratações Públicas), por meio da consulta pública que ele oferece. Confira sempre as informações no edital original, que é o documento válido." },
         { p: "Com que frequência os dados são atualizados?",
-          r: "Depende de quando a coleta é executada. A data da última atualização aparece na tela de pesquisa. A atualização diária automática está nos planos, mas ainda não está no ar." },
+          r: "O site confere o PNCP de hora em hora e, uma vez por dia, faz uma conferência completa. A data e a hora da última atualização aparecem na tela. O que acabou de ser publicado ganha a marca “Nova” por 24 horas. O GitHub, que hospeda o site, às vezes atrasa uma conferência, então pode haver pequenas diferenças de horário." },
         { p: "O Avanço Licitações mostra todas as licitações do Brasil?",
           r: "Não. Mostramos compras com proposta em aberto, nas modalidades que coletamos e que se encaixam nas nossas categorias. Compras fora delas ficam de fora.\n\nAlém disso, nem toda compra pública é publicada no PNCP. Por isso, use o Avanço Licitações como um ponto de partida, não como lista completa." },
       ],
@@ -69,6 +69,8 @@ window.NEXORA_CONTEUDO = {
           r: "Uma nota de 0 a 100 que compara a oportunidade com o perfil da sua empresa: categorias, estados, palavras-chave e faixa de valor. Ela só aparece depois que você preenche o perfil em Minha conta." },
         { p: "Onde ficam meus dados de perfil e minhas oportunidades salvas?",
           r: "Neste navegador, no seu computador. Se você limpar os dados do navegador ou usar outro aparelho, eles não aparecem. A versão na nuvem faz parte do que estamos desenvolvendo." },
+        { p: "Quanto custa o plano pago?",
+          r: "O preço previsto é R$ 7,99 por mês. Hoje nada é cobrado: o plano pago só começa quando o login, o pagamento e os avisos por e-mail estiverem prontos. Pesquisar produtos, usar o radar e ler a Central de ajuda continuam gratuitos." },
         { p: "Quando terei alertas por e-mail?",
           r: "Estão planejados para o plano pago e ainda não estão disponíveis. Veja a página Planos para acompanhar o que já existe e o que está em desenvolvimento." },
         { p: "O Avanço Licitações garante que vou ganhar licitações?",
@@ -79,25 +81,79 @@ window.NEXORA_CONTEUDO = {
 
   // status: agora | parcial | andamento | planejado
   planos: {
+    preco: { valor: "R$ 7,99", periodo: "por mês" },
     gratis: [
       { t: "Pesquisa de produtos: onde e quanto o governo compra", s: "agora" },
       { t: "Radar com filtros por estado, categoria, tipo, valor e prazo", s: "agora" },
+      { t: "Compras novas de hora em hora, com a marca “Nova”", s: "agora",
+        d: "O site confere o PNCP de hora em hora e destaca o que acabou de ser publicado." },
       { t: "Guia “O que você precisa para participar” em cada oportunidade", s: "agora" },
       { t: "Exportar a lista em CSV", s: "agora" },
       { t: "Central de ajuda", s: "agora" },
     ],
     pago: [
-      { t: "Acompanhamento das oportunidades (interesse, proposta, resultado)", s: "parcial",
-        d: "Funciona hoje, salvo no navegador. A versão na nuvem, em qualquer aparelho, depende do login." },
-      { t: "Alertas por e-mail com o que combina com o perfil da empresa", s: "planejado" },
-      { t: "Atualização diária automática de todo o Brasil", s: "andamento",
-        d: "A coleta já existe; falta publicar o site e agendar." },
-      { t: "Relatórios personalizados em PDF", s: "parcial",
-        d: "Hoje é possível imprimir ou salvar em PDF pelo navegador." },
-      { t: "Preço de referência por item: quanto o governo pagou", s: "planejado",
-        d: "Depende de uma fonte de dados que ainda estamos testando." },
-      { t: "Vencedores e valores de compras parecidas", s: "planejado" },
-      { t: "Resumo do edital em linguagem simples", s: "planejado" },
+      { t: "Aviso por e-mail quando sair uma compra que combina com a sua empresa", s: "planejado",
+        d: "Você escolhe o que vende e em quais estados atua. Quando aparece uma compra nova desse tipo, mandamos um e-mail, sem você precisar entrar no site. Depende do login, que ainda vamos construir." },
+      { t: "Acompanhamento guardado na sua conta", s: "parcial",
+        d: "Hoje você já marca as oportunidades de interesse e acompanha cada uma até o resultado, mas isso fica só neste navegador. No plano pago, ficará salvo na sua conta e aparecerá em qualquer aparelho." },
+      { t: "Relatórios em PDF", s: "parcial",
+        d: "Hoje dá para imprimir ou salvar em PDF pelo navegador. No plano pago, o relatório virá pronto, com o perfil da sua empresa." },
+      { t: "Preço por item: quanto o governo pagou", s: "planejado",
+        d: "Hoje mostramos o valor total estimado de cada compra. A ideia é mostrar também o preço de cada item (por exemplo, de uma cadeira), para você montar sua proposta. Depende de uma fonte de dados que ainda estamos testando." },
+      { t: "Quem ganhou compras parecidas, e por quanto", s: "planejado",
+        d: "Para você saber quem são os concorrentes e que preços costumam vencer." },
+      { t: "Resumo do edital em linguagem simples", s: "planejado",
+        d: "O edital costuma ter dezenas de páginas. A ideia é destacar o que importa: prazo, documentos, como enviar a proposta." },
     ],
+  },
+
+  /* Página "Quem somos". Edite à vontade: texto puro, uma linha em branco separa parágrafos. */
+  quemsomos: {
+    titulo: "O governo compra todos os dias. Nós ajudamos você a ver onde, a tempo de participar.",
+    intro: "O Avanço Licitações reúne em um só lugar as compras públicas que estão aceitando propostas, organiza tudo por produto, estado, valor e prazo, e leva você ao edital oficial.",
+    oque: {
+      titulo: "O que é uma licitação, em poucas palavras",
+      paragrafos: [
+        "Prefeituras, governos estaduais e órgãos federais precisam comprar de tudo: papel, cadeiras, computadores, material de limpeza, merenda, obras. Por lei, essa compra é aberta. O órgão publica um edital e qualquer empresa que cumpra as regras pode mandar uma proposta. Isso é uma licitação (ou uma dispensa, quando a lei permite um processo mais simples).",
+        "Para o pequeno empresário, o difícil quase nunca é vender bem. É descobrir a compra a tempo. Os avisos ficam espalhados e, quando você encontra, o prazo às vezes está acabando. É esse problema que o Avanço Licitações quer resolver.",
+      ],
+    },
+    objetivo: {
+      titulo: "Nosso objetivo",
+      texto: "Fazer com que empresas pequenas e médias, e quem está pensando em abrir uma, encontrem as compras públicas certas a tempo de participar, sem precisar vasculhar dezenas de portais.",
+    },
+    passos: [
+      { t: "Buscamos no PNCP", d: "O site confere o Portal Nacional de Contratações Públicas, a base oficial do governo, de hora em hora. O que acabou de ser publicado ganha a marca “Nova”." },
+      { t: "Organizamos para você", d: "Separamos por categoria, estado, tipo (produtos, serviços ou obras), valor e prazo, para você ver só o que interessa." },
+      { t: "Você escolhe o que importa", d: "Filtre pelo que a sua empresa vende, acompanhe as oportunidades de interesse e veja o que costuma ser exigido para participar." },
+      { t: "Você envia a proposta", d: "Levamos você ao edital oficial e ao sistema onde a disputa acontece. A proposta é sua e é feita direto com o órgão." },
+    ],
+    publico: [
+      { t: "Empresas que já vendem ao governo", d: "Encontre mais compras, mais cedo, e acompanhe cada uma até o resultado." },
+      { t: "MEI e pequenas empresas que querem começar", d: "Veja quais órgãos compram o que você vende e quanto costumam gastar, antes de investir tempo em uma proposta." },
+      { t: "Quem ainda não tem empresa", d: "Use a pesquisa de produtos, sem cadastro, para medir a demanda antes de abrir o negócio." },
+    ],
+    fazemos: [
+      "Reunimos compras públicas de 15 categorias em um só lugar.",
+      "Mostramos a data limite, o valor estimado e o órgão que está comprando.",
+      "Indicamos se a compra é de produtos, serviços ou obras.",
+      "Explicamos, em cada oportunidade, o que costuma ser pedido para participar.",
+      "Deixamos qualquer pessoa pesquisar quanto o governo compra de um produto.",
+    ],
+    naoFazemos: [
+      "Não somos um órgão do governo.",
+      "Não participamos das licitações por você nem enviamos propostas em seu nome.",
+      "Não garantimos que você vai ganhar.",
+      "Não substituímos a leitura do edital: confirme sempre as regras no documento oficial.",
+      "Não mostramos todas as compras do país, só as do PNCP, nas categorias que acompanhamos. A classificação é automática e pode errar.",
+    ],
+    fonte: "Todos os dados vêm do PNCP (pncp.gov.br), o portal oficial das compras públicas do Brasil, que publica dados abertos. Cada oportunidade tem link para o edital original.",
+    principios: [
+      { t: "Clareza", d: "Texto simples, sem juridiquês. Quando algo não é certo, a gente diz." },
+      { t: "Honestidade sobre o que funciona", d: "A página de Planos mostra o que já existe e o que ainda está em construção." },
+      { t: "Respeito pelos seus dados", d: "Hoje você usa o site sem cadastro, e o que você acompanha fica só no seu navegador. Quando houver conta, vamos explicar o que guardamos e por quê." },
+    ],
+    // Preencha para mostrar a seção "Quem está por trás": nome da empresa, quem são vocês, cidade, CNPJ etc.
+    equipe: "",
   },
 };

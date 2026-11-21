@@ -6,6 +6,18 @@
     `<svg viewBox="0 0 320 180" aria-hidden="true" focusable="false"><ellipse cx="162" cy="98" rx="140" ry="76" class="fs"/>${corpo}</svg>`;
 
   window.ARTES = {
+    /* Quem somos: prédio público, proposta e carimbo */
+    quemsomos: quadro(`
+      <path d="M64 74L130 38l66 36z" class="x fs"/>
+      <rect x="68" y="74" width="124" height="10" class="x fg"/>
+      <rect x="78" y="84" width="12" height="46" class="x fp"/><rect x="102" y="84" width="12" height="46" class="x fp"/><rect x="126" y="84" width="12" height="46" class="x fp"/><rect x="150" y="84" width="12" height="46" class="x fp"/><rect x="174" y="84" width="12" height="46" class="x fp"/>
+      <rect x="62" y="130" width="136" height="9" class="x fs"/><rect x="54" y="139" width="152" height="10" class="x fy"/>
+      <path d="M130 38V16" class="x" style="stroke-width:3"/><path d="M130 16l22 6-22 8z" class="x fr"/>
+      <path d="M204 104h14" class="x" style="stroke-width:3"/><path d="M214 98l8 6-8 6" class="x" style="stroke-width:3"/>
+      <rect x="226" y="62" width="62" height="82" rx="5" class="x fp"/>
+      <path d="M236 78h42M236 90h42M236 102h26" class="x"/>
+      <g transform="rotate(-12 268 130)"><circle cx="268" cy="130" r="17" class="x sr fp" style="stroke-width:3"/><path d="M260 130l6 6 11-12" class="x sr" style="stroke-width:3.4"/></g>`),
+
     /* Painel: calendário de prazos, relatório e carimbo */
     painel: quadro(`
       <rect x="62" y="30" width="112" height="134" rx="6" class="x fp"/>

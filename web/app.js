@@ -549,6 +549,54 @@
       <p class="muted small" style="margin-top:14px">As respostas são orientações gerais e não substituem o edital nem aconselhamento jurídico ou contábil.</p>`;
   }
 
+
+  function vQuemSomos() {
+    const Q = CONTEUDO.quemsomos;
+    if (!Q) {
+      return cabecalho("Quem somos", "", "", true) + `<div class="card"><h2>Não foi possível carregar esta página</h2>
+        <p class="muted" style="margin:8px 0 0;max-width:70ch">O arquivo <b>conteudo.js</b> não está atualizado na pasta <b>web</b>. Substitua-o pelo novo e aperte Ctrl + F5.</p></div>`;
+    }
+    const ab = abertas();
+    const nUF = new Set(S.dados.map((o) => o.uf).filter(Boolean)).size;
+    const paras = (arr) => (arr || []).map((p) => `<p>${esc(p)}</p>`).join("");
+    const sec = (titulo, corpo, cls) => `<section class="qs-sec${cls ? " " + cls : ""}"><h2>${esc(titulo)}</h2><div class="qs-body">${corpo}</div></section>`;
+    const lista = (arr, cls) => `<ul class="dd ${cls}">${(arr || []).map((t) => `<li>${esc(t)}</li>`).join("")}</ul>`;
+    const cats = Object.entries(CATEGORIAS).filter(([k]) => k !== "outros").map(([, v]) => `<span class="chip">${esc(v)}</span>`).join("");
+    const contato = emailContato
+      ? `<a class="btn" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Contato pelo site Avanço Licitações")}">Falar com a gente</a>` : "";
+    const equipe = (Q.equipe || "").trim()
+      ? sec("Quem está por trás", Q.equipe.split(/\n\s*\n/).map((p) => `<p>${esc(p.trim())}</p>`).join(""))
+      : "";
+    return `
+    <section class="qs-hero">
+      <div class="qs-hero-txt">
+        <h1>${esc(Q.titulo)}</h1>
+        <p>${esc(Q.intro)}</p>
+        <div class="tl-acoes"><a class="btn primary" href="#pesquisa">Pesquisar um produto</a><a class="btn" href="#radar">Ver o radar</a></div>
+      </div>
+      ${arte("quemsomos")}
+    </section>
+    ${S.demo ? "" : `<section class="grid kpis" aria-label="A base hoje">
+      <div class="card kpi"><div class="l">Compras aceitando proposta agora</div><div class="v">${ab.length}</div></div>
+      <div class="card kpi"><div class="l">Estados acompanhados</div><div class="v">${nUF}</div></div>
+      <div class="card kpi"><div class="l">Categorias de produtos e serviços</div><div class="v">${Object.keys(CATEGORIAS).length - 1}</div></div>
+      <div class="card kpi"><div class="l">Última atualização</div><div class="v" style="font-size:24px;line-height:1.5">${S.geradoEm ? esc(dataHoraBR(S.geradoEm)) : "—"}</div></div>
+    </section>`}
+    ${sec(Q.oque.titulo, paras(Q.oque.paragrafos))}
+    ${sec(Q.objetivo.titulo, `<p class="qs-destaque">${esc(Q.objetivo.texto)}</p>`)}
+    ${sec("Como funciona", `<ol class="passos">${(Q.passos || []).map((p) => `<li><h3>${esc(p.t)}</h3><p>${esc(p.d)}</p></li>`).join("")}</ol>`)}
+    ${sec("Para quem é", `<div class="publico">${(Q.publico || []).map((p) => `<div><h3>${esc(p.t)}</h3><p>${esc(p.d)}</p></div>`).join("")}</div>
+      <p class="small muted" style="margin:18px 0 8px">Categorias que acompanhamos hoje:</p><div class="chips">${cats}</div>`)}
+    ${sec("O que fazemos e o que não fazemos", `<div class="grid two"><div><h3>O que fazemos</h3>${lista(Q.fazemos, "sim")}</div><div><h3>O que não fazemos</h3>${lista(Q.naoFazemos, "nao")}</div></div>`)}
+    ${sec("De onde vêm os dados", `<p>${esc(Q.fonte)}</p><p><a href="https://pncp.gov.br" target="_blank" rel="noopener noreferrer">Conhecer o PNCP (pncp.gov.br)</a></p>`)}
+    ${sec("No que acreditamos", `<div class="principios">${(Q.principios || []).map((p) => `<div><h3>${esc(p.t)}</h3><p>${esc(p.d)}</p></div>`).join("")}</div>`)}
+    ${equipe}
+    <section class="qs-cta">
+      <div><h2>Pronto para ver o que o governo está comprando?</h2><p>Comece pela pesquisa: não precisa de cadastro nem de empresa.</p></div>
+      <div class="tl-acoes"><a class="btn primary" href="#pesquisa">Pesquisar um produto</a><a class="btn" href="#ajuda">Tirar uma dúvida</a>${contato}</div>
+    </section>`;
+  }
+
   function vPlanos() {
     if (!CONTEUDO.planos.pago.length && !CONTEUDO.planos.gratis.length) {
       return cabecalho("Planos", "O que já funciona hoje e o que estamos construindo.", "", true) + `<div class="card"><h2>Não foi possível carregar os planos</h2>
@@ -556,18 +604,20 @@
     }
     const ROT = { agora: ["Disponível agora", "ok"], parcial: ["Parcial", "warn"], andamento: ["Em desenvolvimento", "warn"], planejado: ["Planejado", "off"] };
     const li = (i) => { const [txt, cls] = ROT[i.s] || ["", "off"]; return `<li><div><b>${esc(i.t)}</b> <span class="tag ${cls}">${esc(txt)}</span></div>${i.d ? `<p class="small muted" style="margin:2px 0 0">${esc(i.d)}</p>` : ""}</li>`; };
+    const pr = CONTEUDO.planos.preco;
+    const preco = pr ? `<p class="preco"><b>${esc(pr.valor)}</b> <span>${esc(pr.periodo)}</span></p><p class="small muted" style="margin:0 0 6px">Preço previsto. Ainda não estamos cobrando.</p>` : "";
     const corpo = encodeURIComponent("Olá! Quero ser avisado quando os planos do Avanço Licitações estiverem disponíveis.\n\nMinha empresa vende: ");
     return cabecalho("Planos", "O que já funciona hoje e o que estamos construindo para o plano pago.", "", true) + `
-      <div class="note" style="margin-bottom:16px"><b>Nada é cobrado hoje.</b> Os planos e preços ainda estão sendo definidos e validados com empresas. Os itens abaixo mostram, com honestidade, o que já existe e o que ainda não.</div>
+      <div class="note" style="margin-bottom:16px"><b>Nada é cobrado hoje.</b> O plano pago custará R$ 7,99 por mês e só começa quando o login, o pagamento e os avisos por e-mail estiverem prontos. Os itens abaixo mostram, com honestidade, o que já existe e o que ainda não.</div>
       <section class="grid two">
         <div class="card plano"><h2>Gratuito</h2><p class="muted small" style="margin:4px 0 8px">Para pesquisar e conhecer a plataforma.</p><ul>${CONTEUDO.planos.gratis.map(li).join("")}</ul></div>
-        <div class="card plano destaque"><h2>Plano pago</h2><p class="muted small" style="margin:4px 0 8px">Para empresas que querem ganhar tempo e vender mais. Preço em definição.</p><ul>${CONTEUDO.planos.pago.map(li).join("")}</ul>
+        <div class="card plano destaque"><h2>Plano pago</h2>${preco}<p class="muted small" style="margin:4px 0 8px">Para empresas que querem ganhar tempo e não perder prazo. Inclui tudo do plano gratuito.</p><ul>${CONTEUDO.planos.pago.map(li).join("")}</ul>
           ${emailContato ? `<p style="margin:14px 0 0"><a class="btn primary" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Quero ser avisado sobre os planos")}&body=${corpo}">Quero ser avisado</a></p>` : ""}</div>
       </section>`;
   }
 
-  const VIEWS = { painel: vPainel, radar: vRadar, pesquisa: vPesquisa, acompanhar: vAcompanhar, relatorios: vRelatorios, planos: vPlanos, ajuda: vAjuda, conta: vConta };
-  function viewAtual() { const h = location.hash.replace("#", ""); return VIEWS[h] ? h : "pesquisa"; }
+  const VIEWS = { quemsomos: vQuemSomos, painel: vPainel, radar: vRadar, pesquisa: vPesquisa, acompanhar: vAcompanhar, relatorios: vRelatorios, planos: vPlanos, ajuda: vAjuda, conta: vConta };
+  function viewAtual() { const h = location.hash.replace("#", ""); return VIEWS[h] ? h : "quemsomos"; }
 
   function render(manterFoco) {
     const v = viewAtual();

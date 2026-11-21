@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from categorias import classificar, classificar_tipo, normalizar  # noqa: E402
+from datetime import date, timedelta  # noqa: E402
 from pncp_collector import normalizar_registro, salvar_json  # noqa: E402
 
 REGISTRO_EXEMPLO = {
@@ -183,7 +184,8 @@ class TestMemoria(unittest.TestCase):
     """Coleta leve + memória: marcar o que é novo sem perder o que já se sabia."""
 
     def _linha(self, id_, **extra):
-        return dict({"numero_controle_pncp": id_, "objeto": "Aquisição de papel", "data_encerramento_proposta": "2026-12-01T10:00:00"}, **extra)
+        return dict({"numero_controle_pncp": id_, "objeto": "Aquisição de papel", "data_encerramento_proposta": "2026-12-01T10:00:00",
+                     "data_publicacao": date.today().isoformat()}, **extra)
 
     def _ler(self, caminho):
         return json.loads(caminho.read_text(encoding="utf-8"))
@@ -218,6 +220,16 @@ class TestMemoria(unittest.TestCase):
             self.assertEqual(pacote["total"], 2)                # nada perdido por causa da falha
             self.assertTrue(pacote["coleta"]["parcial"])
             self.assertEqual(pacote["coleta"]["n_erros"], 1)
+
+    def test_compra_antiga_descoberta_agora_nao_e_nova(self):
+        with tempfile.TemporaryDirectory() as d:
+            c = Path(d) / "o.json"
+            salvar_json([self._linha("a")], c, memoria=True)
+            velha = (date.today() - timedelta(days=10)).isoformat()
+            salvar_json([self._linha("a"), self._linha("antiga", data_publicacao=velha), self._linha("hoje")], c, memoria=True)
+            r = {o["numero_controle_pncp"]: o for o in self._ler(c)["oportunidades"]}
+            self.assertFalse(r["antiga"].get("primeiro_visto"))   # publicada há 10 dias: não é novidade
+            self.assertTrue(r["hoje"]["primeiro_visto"])
 
     def test_gerado_em_em_utc(self):
         with tempfile.TemporaryDirectory() as d:

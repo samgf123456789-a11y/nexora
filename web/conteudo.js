@@ -1,4 +1,4 @@
-/* Textos editáveis da NEXORA: Central de ajuda e página de Planos.
+/* Textos editáveis do Avanço Licitações: Central de ajuda e página de Planos.
    Pode editar à vontade, sem mexer no app.js. Regras:
    - use só texto puro (sem HTML);
    - uma linha em branco dentro da resposta ("\n\n") vira um novo parágrafo;
@@ -8,16 +8,16 @@ window.NEXORA_CONTEUDO = {
     {
       grupo: "Começando",
       itens: [
-        { p: "O que é a NEXORA?",
-          r: "A NEXORA reúne compras públicas que estão aceitando propostas, organiza por categoria, estado, tipo, valor e prazo, e leva você ao edital oficial.\n\nNão somos um órgão do governo e não participamos das licitações por você. Mostramos onde estão as oportunidades." },
+        { p: "O que é o Avanço Licitações?",
+          r: "O Avanço Licitações reúne compras públicas que estão aceitando propostas, organiza por categoria, estado, tipo, valor e prazo, e leva você ao edital oficial.\n\nNão somos um órgão do governo e não participamos das licitações por você. Mostramos onde estão as oportunidades." },
         { p: "Preciso ter empresa para usar?",
           r: "Não. A pesquisa de produtos é aberta a qualquer pessoa. Para participar de uma licitação, porém, é preciso ter CNPJ." },
         { p: "De onde vêm os dados?",
           r: "Do PNCP (Portal Nacional de Contratações Públicas), por meio da consulta pública que ele oferece. Confira sempre as informações no edital original, que é o documento válido." },
         { p: "Com que frequência os dados são atualizados?",
           r: "Depende de quando a coleta é executada. A data da última atualização aparece na tela de pesquisa. A atualização diária automática está nos planos, mas ainda não está no ar." },
-        { p: "A NEXORA mostra todas as licitações do Brasil?",
-          r: "Não. Mostramos compras com proposta em aberto, nas modalidades que coletamos e que se encaixam nas nossas categorias. Compras fora delas ficam de fora.\n\nAlém disso, nem toda compra pública é publicada no PNCP. Por isso, use a NEXORA como um ponto de partida, não como lista completa." },
+        { p: "O Avanço Licitações mostra todas as licitações do Brasil?",
+          r: "Não. Mostramos compras com proposta em aberto, nas modalidades que coletamos e que se encaixam nas nossas categorias. Compras fora delas ficam de fora.\n\nAlém disso, nem toda compra pública é publicada no PNCP. Por isso, use o Avanço Licitações como um ponto de partida, não como lista completa." },
       ],
     },
     {
@@ -38,7 +38,7 @@ window.NEXORA_CONTEUDO = {
         { p: "O que significa “Valor não informado”?",
           r: "Que o órgão não publicou o valor estimado ou que o orçamento é sigiloso. Não quer dizer que a compra vale zero." },
         { p: "O que são “Compra de produtos”, “Serviços” e “Obras”?",
-          r: "É uma classificação que a NEXORA faz lendo o texto do objeto da compra, porque a lista do PNCP não informa isso. Pode errar em objetos que misturam compra e serviço. Confirme no edital." },
+          r: "É uma classificação que o Avanço Licitações faz lendo o texto do objeto da compra, porque a lista do PNCP não informa isso. Pode errar em objetos que misturam compra e serviço. Confirme no edital." },
       ],
     },
     {
@@ -71,7 +71,7 @@ window.NEXORA_CONTEUDO = {
           r: "Neste navegador, no seu computador. Se você limpar os dados do navegador ou usar outro aparelho, eles não aparecem. A versão na nuvem faz parte do que estamos desenvolvendo." },
         { p: "Quando terei alertas por e-mail?",
           r: "Estão planejados para o plano pago e ainda não estão disponíveis. Veja a página Planos para acompanhar o que já existe e o que está em desenvolvimento." },
-        { p: "A NEXORA garante que vou ganhar licitações?",
+        { p: "O Avanço Licitações garante que vou ganhar licitações?",
           r: "Não. Oferecemos informação e organização. Participar e ganhar depende da sua empresa, do preço, dos documentos e das regras de cada edital." },
       ],
     },

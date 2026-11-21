@@ -1,4 +1,4 @@
-"""Classificação de objetos de compra em categorias NEXORA.
+"""Classificação de objetos de compra em categorias Avanço Licitações.
 
 A classificação é por palavras-chave sobre o texto do objeto (sem acentos,
 minúsculo). É propositalmente simples e transparente: cada categoria tem

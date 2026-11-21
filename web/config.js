@@ -1,4 +1,4 @@
-// Configuração da NEXORA (pode ficar público: a chave "anon" é feita para isso).
+// Configuração do Avanço Licitações (pode ficar público: a chave "anon" é feita para isso).
 // Deixe em branco para rodar em modo demonstração/arquivo local.
 // Preencha depois de criar o projeto no Supabase (Settings > API).
 window.NEXORA_CONFIG = {

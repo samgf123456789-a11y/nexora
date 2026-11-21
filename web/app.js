@@ -1,4 +1,4 @@
-/* NEXORA Intelligence — front-end sem etapa de build.
+/* Avanço Licitações — front-end sem etapa de build.
    Fontes de dados, em ordem: Supabase (se configurado) → data/oportunidades.json → data/demo.json */
 (function () {
   "use strict";
@@ -151,7 +151,7 @@
       try {
         const q = `${CFG.SUPABASE_URL}/rest/v1/oportunidades?select=*&order=data_encerramento_proposta.asc&limit=2000`;
         S.dados = await jget(q, { headers: cabSupa() });
-        S.fonte = "PNCP (via NEXORA)"; S.geradoEm = null; S.demo = false;
+        S.fonte = "PNCP (via Avanço Licitações)"; S.geradoEm = null; S.demo = false;
         return;
       } catch (e) { /* cai para arquivos */ }
     }
@@ -300,8 +300,12 @@
     </article>`;
   }
 
+  // Ilustração da tela (web/artes.js). Para usar uma foto, devolva um <img> aqui.
+  const arte = (k) => (window.ARTES && window.ARTES[k]) ? `<div class="arte" aria-hidden="true">${window.ARTES[k]}</div>` : "";
+  const saudacao = () => { const h = new Date().getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; };
+
   function cabecalho(titulo, sub, extra, semAviso) {
-    return `<div class="topline"><div><h1>${esc(titulo)}</h1><p>${esc(sub)}</p></div><div class="no-print">${extra || ""}</div></div>
+    return `<div class="topline"><div><h1>${esc(titulo)}</h1><p>${esc(sub)}</p>${extra ? `<div class="tl-acoes no-print">${extra}</div>` : ""}</div>${arte(viewAtual())}</div>
       ${S.coleta && S.coleta.parcial && !S.demo && !semAviso ? '<div class="banner"><b>Atualização incompleta.</b> Na última coleta algumas consultas ao PNCP falharam (' + esc(S.coleta.n_erros || "") + '). Parte das oportunidades pode estar faltando ou desatualizada; a próxima coleta tenta de novo.</div>' : ""}
       ${S.demo && !semAviso ? '<div class="banner"><b>Dados de demonstração.</b> As oportunidades abaixo são fictícias, só para você testar o sistema. Rode o coletor para trazer compras reais do PNCP.</div>' : ""}`;
   }
@@ -314,7 +318,10 @@
     const meu = S.perfil.tipo === "empresa" ? ordenar(ab, "compat").filter((o) => (compat(o) || 0) >= 60).slice(0, 5) : [];
     const prazosSalvos = ordenar(Object.entries(S.salvos).filter(([, r]) => STATUS_ATIVOS.includes(r.status)).map(([id, r]) => atual(r, id))
       .filter((o) => { const d = diasAte(o.data_encerramento_proposta); return d !== null && d >= 0; }), "prazo").slice(0, 5);
-    return cabecalho("Painel", "Visão geral das compras públicas monitoradas.", '<a class="btn primary" href="#radar">Abrir radar</a>') + `
+    const nSemana = ab.filter((o) => { const d = diasAte(o.data_encerramento_proposta); return d !== null && d <= 7; }).length;
+    const nNovas = ab.filter(nova).length;
+    const resumo = `Hoje há ${ab.length} compras públicas aceitando propostas` + (nSemana ? `, e ${nSemana} encerram nesta semana` : "") + "." + (nNovas ? ` ${nNovas} apareceram nas últimas 24 horas.` : "");
+    return cabecalho(saudacao() + "!", resumo, '<a class="btn primary" href="#radar">Ver o radar</a> <a class="btn" href="#pesquisa">Pesquisar um produto</a>') + `
     <section class="grid kpis" aria-label="Indicadores">
       <div class="card kpi"><div class="l">Oportunidades abertas</div><div class="v">${ab.length}</div></div>
       <div class="card kpi"><div class="l">Valor estimado total</div><div class="v">${brlCurto(soma(ab, (o) => o.valor_estimado))}</div></div>
@@ -337,7 +344,7 @@
     const f = S.filtros;
     const lista = ordenar(filtrar(abertas(), f), f.ordem);
     const opt = (v, t, sel) => `<option value="${esc(v)}"${sel === v ? " selected" : ""}>${esc(t)}</option>`;
-    return cabecalho("Radar de oportunidades", "Compras públicas com proposta em aberto, em um só lugar.",
+    return cabecalho("Radar de oportunidades", "Todas as compras que estão aceitando proposta agora. Filtre pelo que a sua empresa vende.",
       `<button class="btn" data-acao="csv" data-fonte="radar">Baixar CSV</button>`) + `
     <form class="card filters" id="filtros" aria-label="Filtros">
       <div class="field"><label for="f-q">Buscar</label><input id="f-q" name="q" value="${esc(f.q)}" placeholder="produto, órgão ou cidade"></div>
@@ -377,7 +384,7 @@
         </section>
         <section class="card"><h2>Compras com “${esc(q)}”</h2>${ordenar(lista, "recentes").slice(0, 30).map(itemOpp).join("")}</section>`
         : `<div class="card"><h2>Nenhuma compra encontrada para “${esc(q)}”</h2>
-            <p class="muted" style="margin:8px 0 0;max-width:70ch">Isso não quer dizer que ninguém compre isso. Quer dizer que o produto não está na base que a NEXORA carregou até agora${S.buscaCat ? " (ou não está na categoria escolhida)" : ""}. Você pode:</p>
+            <p class="muted" style="margin:8px 0 0;max-width:70ch">Isso não quer dizer que ninguém compre isso. Quer dizer que o produto não está na base que o Avanço Licitações carregou até agora${S.buscaCat ? " (ou não está na categoria escolhida)" : ""}. Você pode:</p>
             <ul class="muted" style="margin:8px 0 0;padding-left:20px">
               <li>tentar um termo mais simples, no singular ou sem acento (“cadeira”, “papel”, “medicamento”);</li>
               ${S.buscaCat ? '<li>escolher “Todas as categorias” no filtro acima;</li>' : ""}
@@ -389,8 +396,9 @@
     return `
     ${S.demo ? '<div class="banner"><b>Dados de demonstração.</b> Resultados fictícios para teste.</div>' : ""}
     <section class="hero">
-      <h1>Descubra quanto o governo compra de qualquer produto</h1>
-      <p>Pesquise cadeiras, papel, mesas, impressoras e mais. Veja quem compra, onde e por quanto, sem precisar ter empresa nem criar conta.</p>
+      <div class="hero-txt">
+      <h1>Quanto o governo paga por aquilo que você vende?</h1>
+      <p>Pesquise cadeiras, papel, mesas, impressoras e muito mais. Veja quem está comprando, onde e por quanto. Não precisa de empresa nem de cadastro.</p>
       <form class="searchbox" id="form-busca" role="search">
         <input id="busca" type="search" value="${esc(S.busca)}" placeholder="O que você quer pesquisar?" aria-label="Produto a pesquisar" autocomplete="off">
         <select id="busca-cat" class="hero-select" aria-label="Categoria">
@@ -400,6 +408,8 @@
         <button class="btn primary">Pesquisar</button>
       </form>
       <div class="chips" style="margin-top:14px">${SUGESTOES.map((s) => `<button class="chip" data-busca="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+      </div>
+      ${arte("pesquisa")}
     </section>
     ${cobertura}
     ${res}
@@ -437,7 +447,7 @@
   function vConta() {
     const p = S.perfil;
     const logado = !!S.sessao;
-    return cabecalho("Minha conta", "Perfil da empresa e preferências de monitoramento.", "") + `
+    return cabecalho("Minha conta", "Conte o que a sua empresa vende e mostramos o que combina com ela.", "") + `
     <section class="card" style="margin-bottom:16px">
       <h2>Acesso</h2>
       ${TEM_SUPABASE
@@ -507,7 +517,7 @@
       <button class="btn sm" data-acao="remover" data-id="${esc(r.id)}">Remover da lista</button>
       ${r.naBase ? "" : '<p class="small muted" style="flex-basis:100%;margin:0">Esta oportunidade saiu da base atual. Mostrando os dados de quando você a salvou.</p>'}
     </div>`;
-    return cabecalho("Minhas oportunidades", "Acompanhe cada licitação, do interesse até o resultado.", '<a class="btn primary" href="#radar">Encontrar oportunidades</a>') + `
+    return cabecalho("Minhas oportunidades", "Acompanhe cada licitação, do primeiro interesse até o resultado.", '<a class="btn primary" href="#radar">Encontrar oportunidades</a>') + `
       <p class="muted small" style="margin:0 2px 14px">Salvo neste navegador. Com o login (plano pago), o acompanhamento ficará guardado na nuvem e disponível em qualquer aparelho.</p>
       ${regs.length ? `<div class="chips no-print" style="margin-bottom:14px">${chips}</div>` : ""}
       <section class="card">${lista.length ? lista.map((r) => cartao(r.o, controles(r))).join("")
@@ -524,7 +534,7 @@
     const grupos = CONTEUDO.faq.map((g) => ({ grupo: g.grupo, itens: g.itens.filter((i) => !q || norm(i.p + " " + i.r).includes(q)) })).filter((g) => g.itens.length);
     const total = grupos.reduce((n, g) => n + g.itens.length, 0);
     const paragrafos = (t) => String(t).split(/\n\n/).map((p) => `<p>${esc(p)}</p>`).join("");
-    return cabecalho("Central de ajuda", "Respostas para as dúvidas mais comuns sobre a NEXORA e sobre compras públicas.", "", true) + `
+    return cabecalho("Central de ajuda", "Respostas simples para as dúvidas mais comuns sobre o Avanço Licitações e sobre compras públicas.", "", true) + `
       <div class="field" style="max-width:520px;margin-bottom:6px"><label for="ajuda-q">Buscar nas respostas</label>
         <input id="ajuda-q" type="search" value="${esc(S.ajudaQ)}" placeholder="Ex.: MEI, pregão, documentos" autocomplete="off"></div>
       <p class="muted small" style="margin:0 2px 14px" role="status">${q ? total + " resposta" + (total === 1 ? "" : "s") + " encontrada" + (total === 1 ? "" : "s") : "Escolha uma pergunta ou use a busca."}</p>
@@ -533,7 +543,7 @@
         : `<div class="card"><h2>Nenhuma resposta para “${esc(S.ajudaQ)}”</h2><p class="muted" style="margin:8px 0 0">Tente uma palavra mais simples (“documentos”, “MEI”, “prazo”) ou veja as perguntas por assunto, limpando a busca.</p></div>`}
       <section class="card"><h2>Não encontrou sua dúvida?</h2>
         ${emailContato
-          ? `<p class="muted" style="margin:8px 0 12px">Escreva para a gente. Quando a pergunta for comum, ela entra aqui na Central de ajuda.</p><a class="btn primary" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Dúvida sobre a NEXORA")}">Enviar uma dúvida</a>`
+          ? `<p class="muted" style="margin:8px 0 12px">Escreva para a gente. Quando a pergunta for comum, ela entra aqui na Central de ajuda.</p><a class="btn primary" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Dúvida sobre o Avanço Licitações")}">Enviar uma dúvida</a>`
           : '<p class="muted" style="margin:8px 0 0">O canal para enviar dúvidas será ativado em breve.</p>'}
       </section>
       <p class="muted small" style="margin-top:14px">As respostas são orientações gerais e não substituem o edital nem aconselhamento jurídico ou contábil.</p>`;
@@ -541,13 +551,13 @@
 
   function vPlanos() {
     if (!CONTEUDO.planos.pago.length && !CONTEUDO.planos.gratis.length) {
-      return cabecalho("Planos", "O que já funciona hoje e o que está sendo construído.", "", true) + `<div class="card"><h2>Não foi possível carregar os planos</h2>
+      return cabecalho("Planos", "O que já funciona hoje e o que estamos construindo.", "", true) + `<div class="card"><h2>Não foi possível carregar os planos</h2>
         <p class="muted" style="margin:8px 0 0;max-width:70ch">O arquivo <b>conteudo.js</b> não foi encontrado na pasta <b>web</b>. Coloque-o ao lado do <b>app.js</b> e aperte Ctrl + F5.</p></div>`;
     }
     const ROT = { agora: ["Disponível agora", "ok"], parcial: ["Parcial", "warn"], andamento: ["Em desenvolvimento", "warn"], planejado: ["Planejado", "off"] };
     const li = (i) => { const [txt, cls] = ROT[i.s] || ["", "off"]; return `<li><div><b>${esc(i.t)}</b> <span class="tag ${cls}">${esc(txt)}</span></div>${i.d ? `<p class="small muted" style="margin:2px 0 0">${esc(i.d)}</p>` : ""}</li>`; };
-    const corpo = encodeURIComponent("Olá! Quero ser avisado quando os planos da NEXORA estiverem disponíveis.\n\nMinha empresa vende: ");
-    return cabecalho("Planos", "O que já funciona hoje e o que está sendo construído para o plano pago.", "", true) + `
+    const corpo = encodeURIComponent("Olá! Quero ser avisado quando os planos do Avanço Licitações estiverem disponíveis.\n\nMinha empresa vende: ");
+    return cabecalho("Planos", "O que já funciona hoje e o que estamos construindo para o plano pago.", "", true) + `
       <div class="note" style="margin-bottom:16px"><b>Nada é cobrado hoje.</b> Os planos e preços ainda estão sendo definidos e validados com empresas. Os itens abaixo mostram, com honestidade, o que já existe e o que ainda não.</div>
       <section class="grid two">
         <div class="card plano"><h2>Gratuito</h2><p class="muted small" style="margin:4px 0 8px">Para pesquisar e conhecer a plataforma.</p><ul>${CONTEUDO.planos.gratis.map(li).join("")}</ul></div>
@@ -621,7 +631,7 @@
     if (a === "csv") {
       const lista = b.dataset.fonte === "radar" ? ordenar(filtrar(abertas(), S.filtros), S.filtros.ordem)
         : abertas().filter((o) => { const d = diasAte(o.data_encerramento_proposta); return d !== null && d <= Number(S.relDias || 30); });
-      baixarCSV(lista, "nexora-oportunidades.csv");
+      baixarCSV(lista, "avanco-licitacoes-oportunidades.csv");
     }
     if (a === "login") { $("#lg-erro").textContent = ""; $("#dlg-login").showModal(); }
     if (a === "sair") sair();

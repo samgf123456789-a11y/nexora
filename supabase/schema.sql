@@ -1,4 +1,4 @@
--- NEXORA Intelligence — esquema do banco (PostgreSQL / Supabase)
+-- Avanço Licitações — esquema do banco (PostgreSQL / Supabase)
 -- Execute no SQL Editor do Supabase.
 
 create extension if not exists unaccent;
@@ -32,6 +32,7 @@ create table if not exists oportunidades (
   codigo_ibge            text,
   categoria              text,           -- escritorio_papelaria, mobiliario, informatica_impressao, outros
   subcategorias          text[] default '{}',
+  tipo                   text,           -- produtos, servicos, obras (inferido do texto)
   palavras_encontradas   text[] default '{}',
   link_pncp              text,
   link_origem            text,
@@ -40,10 +41,14 @@ create table if not exists oportunidades (
 
 create index if not exists idx_oport_uf        on oportunidades (uf);
 create index if not exists idx_oport_categoria on oportunidades (categoria);
+create index if not exists idx_oport_tipo      on oportunidades (tipo);
 create index if not exists idx_oport_prazo     on oportunidades (data_encerramento_proposta);
 create index if not exists idx_oport_valor     on oportunidades (valor_estimado);
 create index if not exists idx_oport_objeto_trgm
   on oportunidades using gin (objeto gin_trgm_ops);
+
+-- Se a tabela já existia antes desta versão, rode também:
+--   alter table oportunidades add column if not exists tipo text;
 
 -- ---------------------------------------------------------------
 -- Perfis de empresa (área do cliente)

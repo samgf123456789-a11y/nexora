@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Coletor NEXORA — consulta a API pública do PNCP e grava oportunidades.
+"""Coletor Avanço Licitações — consulta a API pública do PNCP e grava oportunidades.
 
 Usa apenas a biblioteca padrão do Python (sem pip install).
 
@@ -41,7 +41,7 @@ PORTAL = "https://pncp.gov.br/app/editais"
 MODALIDADES_PADRAO = [4, 5, 6, 7, 8, 12]
 OBJETO_MAX_JSON = 600  # o JSON do site guarda o objeto resumido; o Supabase guarda inteiro
 TAMANHO_PAGINA = 50
-UA = "NEXORA-Intelligence/0.1 (coletor de dados abertos do PNCP)"
+UA = "AvancoLicitacoes/0.1 (coletor de dados abertos do PNCP)"
 
 
 # ---------------------------------------------------------------- HTTP
@@ -323,7 +323,7 @@ def enviar_supabase(linhas: list[dict]) -> None:
 
 # ---------------------------------------------------------------- CLI
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description="Coletor de oportunidades do PNCP — NEXORA")
+    p = argparse.ArgumentParser(description="Coletor de oportunidades do PNCP — Avanço Licitações")
     p.add_argument("--modo", choices=["abertas", "publicacao"], default="abertas",
                    help="abertas = propostas em aberto; publicacao = publicadas nos últimos --dias")
     p.add_argument("--ufs", default="", help="siglas separadas por vírgula (vazio = Brasil todo)")
@@ -350,7 +350,7 @@ def main(argv=None) -> int:
     ufs = [u.strip().upper() for u in a.ufs.split(",") if u.strip()] or [None]
     mods = [int(m) for m in a.modalidades.split(",") if m.strip()]
 
-    print(f"NEXORA coletor | modo={a.modo} | UFs={ufs} | modalidades={mods}")
+    print(f"Avanço Licitações coletor | modo={a.modo} | UFs={ufs} | modalidades={mods}")
     erros: list[str] = []
     linhas = coletar(a.modo, ufs, mods, a.dias, a.limite_paginas, incluir_outros=a.incluir_outros, erros=erros)
     if erros:

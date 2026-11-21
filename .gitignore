@@ -1,0 +1,16 @@
+# Nunca envie senhas, chaves ou arquivos de configuração privados para o repositório (ele é público).
+.env
+.env.*
+*.pem
+*.key
+secrets*
+coleta_log.txt
+__pycache__/
+*.pyc
+
+# Dados gerados pela coleta (a automação guarda no cache do GitHub, não no repositório)
+web/data/oportunidades.json
+
+# Cópias acidentais
+* (1).*
+*.bak

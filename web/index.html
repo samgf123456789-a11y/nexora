@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Segurança: o navegador só executa scripts deste próprio site e só se conecta a ele (e ao Supabase, se for usado).
+     Se mudar para outro banco ou domínio, atualize "connect-src". -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; base-uri 'none'; object-src 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<!-- Impede que outro site coloque esta página dentro de uma moldura (clickjacking). seguranca.js libera a tela se estiver tudo certo. -->
+<style id="antiframe">html{display:none!important}</style>
+<noscript><style>html{display:block!important}</style></noscript>
+<script src="seguranca.js"></script>
+<title>Avanço Licitações — Encontre compras públicas antes da concorrência</title>
+<meta name="description" content="Veja quais órgãos públicos estão comprando o que a sua empresa vende, antes da concorrência. Pesquisa de produtos aberta a todos.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230F6B4F'/%3E%3Cpath d='M7 22l6-6 4 3 8-9' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M19 10h6v6' fill='none' stroke='%23F4C84A' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Public+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="#quemsomos" aria-label="Avanço Licitações, ir para a página inicial">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0F6B4F"/><path d="M7 22l6-6 4 3 8-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 10h6v6" fill="none" stroke="#F4C84A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span><b>Avanço</b><small>Licitações</small></span>
+      </a>
+      <nav class="nav" id="nav" aria-label="Principal">
+        <a href="#quemsomos" data-v="quemsomos">Quem somos</a>
+        <a href="#painel" data-v="painel">Painel</a>
+        <a href="#radar" data-v="radar">Radar</a>
+        <a href="#pesquisa" data-v="pesquisa">Pesquisar produtos</a>
+        <a href="#acompanhar" data-v="acompanhar">Minhas oportunidades</a>
+        <a href="#relatorios" data-v="relatorios">Relatórios</a>
+        <a href="#planos" data-v="planos">Planos</a>
+        <a href="#ajuda" data-v="ajuda">Ajuda</a>
+        <a href="#conta" data-v="conta">Minha conta</a>
+      </nav>
+    </div>
+  </header>
+  <main class="main" id="conteudo" tabindex="-1"><p class="muted">Carregando…</p></main>
+  <footer class="foot">
+    <div class="foot-in">
+      <span><b>Avanço Licitações</b> ajuda a encontrar as compras públicas. Não somos órgão do governo e não participamos das licitações por você.</span>
+      <span id="rodape">Dados do PNCP</span>
+    </div>
+  </footer>
+</div>
+
+<dialog id="dlg-login">
+  <form method="dialog" id="form-login">
+    <h2 id="login-titulo">Entrar no Avanço Licitações</h2>
+    <p class="muted small">Salve filtros, perfil da empresa e receba alertas.</p>
+    <div class="field" style="margin:12px 0"><label for="lg-email">E-mail</label><input id="lg-email" type="email" autocomplete="email" required></div>
+    <div class="field"><label for="lg-senha">Senha</label><input id="lg-senha" type="password" autocomplete="current-password" minlength="10" maxlength="72" required></div>
+    <p class="err" id="lg-erro" role="alert"></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" id="lg-entrar" value="entrar">Entrar</button>
+      <button class="btn" id="lg-criar" value="criar" type="button">Criar conta</button>
+      <button class="btn" value="cancel" formnovalidate>Cancelar</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="config.js"></script>
+<script src="conteudo.js"></script>
+<script src="artes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

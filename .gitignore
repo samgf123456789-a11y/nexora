@@ -1,0 +1,9 @@
+# Nunca envie senhas, chaves ou arquivos de configuração privados para o repositório (ele é público).
+.env
+.env.*
+*.pem
+*.key
+secrets*
+coleta_log.txt
+__pycache__/
+*.pyc

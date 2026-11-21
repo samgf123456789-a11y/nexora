@@ -1,10 +1,13 @@
 name: Coletar e publicar o site
 
 # Duas rotinas:
-#  - TODO DIA às 06h (Brasília): coleta completa de todas as compras abertas (leva ~50 min).
+#  - TODO DIA às 06h (Brasília): coleta completa de todas as compras abertas (leva ~1 hora).
 #  - DE HORA EM HORA: coleta leve, só o que foi publicado nas últimas 24h, somada ao que já se sabe.
 # O resultado fica guardado no "cache" do GitHub entre uma execução e outra, então nada é gravado
 # no repositório e ele não cresce. Compras novas ganham a marca "Nova" no site.
+#
+# Segurança: o trabalho está dividido em duas etapas. Quem coleta dados da internet só pode LER o
+# repositório. Quem publica o site é uma etapa separada, com a única permissão de publicar.
 
 on:
   schedule:
@@ -13,30 +16,28 @@ on:
   workflow_dispatch:
     inputs:
       completa:
-        description: "Forçar a coleta completa (leva ~50 min)"
+        description: "Forçar a coleta completa (leva ~1 hora)"
         type: boolean
         default: false
   push:
     branches: [main]       # republica quando você muda algum arquivo
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}            # nada por padrão; cada etapa pede só o que precisa
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  publicar:
+  coletar:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    permissions:
+      contents: read       # só leitura do repositório
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
@@ -44,7 +45,6 @@ jobs:
 
       # Memória entre execuções: restaura o último JSON e, ao final, guarda o novo.
       - name: Restaurar dados da última execução
-        id: memoria
         uses: actions/cache@v4
         with:
           path: web/data/oportunidades.json
@@ -53,10 +53,14 @@ jobs:
 
       - name: Escolher o tipo de coleta
         id: modo
+        env:
+          EVENTO: ${{ github.event_name }}
+          AGENDA: ${{ github.event.schedule }}
+          FORCAR: ${{ github.event.inputs.completa }}
         run: |
           COMPLETA=false
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "0 9 * * *" ]; then COMPLETA=true; fi
-          if [ "${{ github.event.inputs.completa }}" = "true" ]; then COMPLETA=true; fi
+          if [ "$EVENTO" = "schedule" ] && [ "$AGENDA" = "0 9 * * *" ]; then COMPLETA=true; fi
+          if [ "$FORCAR" = "true" ]; then COMPLETA=true; fi
           # sem memória (primeira vez, cache apagado ou arquivo de uma versão antiga) não dá para fazer só a coleta leve
           if ! grep -q '"ultima_completa_em":"' web/data/oportunidades.json 2>/dev/null; then COMPLETA=true; fi
           echo "completa=$COMPLETA" >> "$GITHUB_OUTPUT"
@@ -80,11 +84,20 @@ jobs:
         if: steps.completa.outcome == 'failure' || steps.leve.outcome == 'failure'
         run: echo "::warning::A coleta do PNCP falhou. O site foi publicado com os dados anteriores."
 
-      - uses: actions/configure-pages@v5
-
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web
 
+  publicar:
+    needs: coletar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write         # publicar o site
+      id-token: write      # comprovar a origem da publicação
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v4

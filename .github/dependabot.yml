@@ -1,0 +1,8 @@
+# Verifica toda semana se as ferramentas usadas na publicação (actions) têm versão nova
+# e abre um pedido de atualização, para você aprovar. Evita ficar com ferramenta desatualizada ou vulnerável.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

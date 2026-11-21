@@ -241,9 +241,13 @@ def salvar_json(linhas: list[dict], caminho: Path, acrescentar: bool = False,
         linhas = list(por_id.values())
 
     if memoria and por_id_antigo:  # na primeira vez não há "antes": nada é marcado como novo
+        # Só é "novo" o que foi publicado há pouco: se uma coleta anterior falhou e deixou de ver
+        # compras antigas, elas aparecem depois como desconhecidas, mas não são novidade.
+        limite_pub = (date.today() - timedelta(days=2)).isoformat()
         for o in linhas:
             antigo = por_id_antigo.get(o["numero_controle_pncp"])
-            o["primeiro_visto"] = (antigo or {}).get("primeiro_visto") or (agora if not antigo else None)
+            recente = (o.get("data_publicacao") or "") >= limite_pub
+            o["primeiro_visto"] = (antigo or {}).get("primeiro_visto") or (agora if (not antigo and recente) else None)
     linhas = [dict(o, objeto=(o["objeto"][:OBJETO_MAX_JSON] + "…") if len(o.get("objeto") or "") > OBJETO_MAX_JSON else o.get("objeto"),
                    informacao_complementar=None) for o in linhas]
 

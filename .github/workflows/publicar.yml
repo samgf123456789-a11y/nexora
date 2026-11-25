@@ -1,0 +1,107 @@
+name: Coletar e publicar o site
+
+# Duas rotinas:
+#  - TODO DIA às 06h (Brasília): coleta completa de todas as compras abertas (leva ~1 hora).
+#  - DE HORA EM HORA: coleta leve, só o que foi publicado nas últimas 24h, somada ao que já se sabe.
+# O resultado fica guardado no "cache" do GitHub entre uma execução e outra, então nada é gravado
+# no repositório e ele não cresce. Compras novas ganham a marca "Nova" no site.
+#
+# Segurança: o trabalho está dividido em duas etapas. Quem coleta dados da internet só pode LER o
+# repositório. Quem publica o site é uma etapa separada, com a única permissão de publicar.
+
+on:
+  schedule:
+    - cron: "0 9 * * *"    # 06h em Brasília: coleta completa
+    - cron: "20 * * * *"   # a cada hora (minuto 20): coleta leve
+  workflow_dispatch:
+    inputs:
+      completa:
+        description: "Forçar a coleta completa (leva ~1 hora)"
+        type: boolean
+        default: false
+  push:
+    branches: [main]       # republica quando você muda algum arquivo
+
+permissions: {}            # nada por padrão; cada etapa pede só o que precisa
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read       # só leitura do repositório
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Memória entre execuções: restaura o último JSON e, ao final, guarda o novo.
+      - name: Restaurar dados da última execução
+        uses: actions/cache@v4
+        with:
+          path: web/data/oportunidades.json
+          key: dados-${{ github.run_id }}
+          restore-keys: dados-
+
+      - name: Escolher o tipo de coleta
+        id: modo
+        env:
+          EVENTO: ${{ github.event_name }}
+          AGENDA: ${{ github.event.schedule }}
+          FORCAR: ${{ github.event.inputs.completa }}
+        run: |
+          COMPLETA=false
+          if [ "$EVENTO" = "schedule" ] && [ "$AGENDA" = "0 9 * * *" ]; then COMPLETA=true; fi
+          if [ "$FORCAR" = "true" ]; then COMPLETA=true; fi
+          # sem memória (primeira vez, cache apagado ou arquivo de uma versão antiga) não dá para fazer só a coleta leve
+          if ! grep -q '"ultima_completa_em":"' web/data/oportunidades.json 2>/dev/null; then COMPLETA=true; fi
+          echo "completa=$COMPLETA" >> "$GITHUB_OUTPUT"
+          echo "Coleta completa: $COMPLETA"
+
+      # Se o PNCP recusar a coleta, o site é publicado mesmo assim com os dados que já estavam
+      # guardados. A hora "atualizada em" na tela mostra se ficou velho.
+      - name: Coleta completa (Brasil todo)
+        id: completa
+        if: steps.modo.outputs.completa == 'true'
+        continue-on-error: true
+        run: python collector/pncp_collector.py --modo abertas --memoria
+
+      - name: Coleta leve (publicadas nas últimas 24h)
+        id: leve
+        if: steps.modo.outputs.completa != 'true'
+        continue-on-error: true
+        run: python collector/pncp_collector.py --modo publicacao --dias 1 --memoria
+
+      - name: Avisar se a coleta falhou
+        if: steps.completa.outcome == 'failure' || steps.leve.outcome == 'failure'
+        run: echo "::warning::A coleta do PNCP falhou. O site foi publicado com os dados anteriores."
+
+      # Remove da cópia pública arquivos soltos (como "app (1).js") e BLOQUEIA a publicação se achar uma chave secreta.
+      - name: Conferir o que vai ao ar
+        run: python collector/verificar_publicacao.py web
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  publicar:
+    needs: coletar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write         # publicar o site
+      id-token: write      # comprovar a origem da publicação
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

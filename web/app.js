@@ -1,4 +1,4 @@
-/* Avanço Licitações — front-end sem etapa de build.
+/* Ferramenta Licitações — front-end sem etapa de build.
    Fontes de dados, em ordem: Supabase (se configurado) → data/oportunidades.json → data/demo.json */
 (function () {
   "use strict";
@@ -50,9 +50,12 @@
     mostrar: PAGINA,
     perfil: lerLocal("nexora_perfil", { tipo: "visitante", razao: "", cnpj: "", ufs: [], cats: [], palavras: "", vmin: "", vmax: "" }),
     sessao: lerSessao(),
+    plano: "gratis",
     busca: "",
     buscaCat: "",
-    ajudaQ: "",
+    mkt: { aba: "orgaos", q: "", uf: "", esfera: "", ordem: "compras", mostrar: 30 },
+    fq: { q: "", uf: "", cat: "", ordem: "n", mostrar: 30 },
+    precos: null,
     acompFiltro: "",
     salvos: lerLocal("nexora_salvos", {}), // { id: { status, nota, salvoEm, o: oportunidade } } — só neste navegador
   };
@@ -125,11 +128,19 @@
     return [...m.entries()].map(([k, e]) => ({ k, ...e })).sort((a, b) => b.n - a.n);
   }
 
+  const NOME_UF = { AC: "Acre", AL: "Alagoas", AM: "Amazonas", AP: "Amapá", BA: "Bahia", CE: "Ceará", DF: "Distrito Federal", ES: "Espírito Santo", GO: "Goiás", MA: "Maranhão", MG: "Minas Gerais", MS: "Mato Grosso do Sul", MT: "Mato Grosso", PA: "Pará", PB: "Paraíba", PE: "Pernambuco", PI: "Piauí", PR: "Paraná", RJ: "Rio de Janeiro", RN: "Rio Grande do Norte", RO: "Rondônia", RR: "Roraima", RS: "Rio Grande do Sul", SC: "Santa Catarina", SE: "Sergipe", SP: "São Paulo", TO: "Tocantins" };
+  // todos os 27 estados, mesmo os que estão com zero compras
+  function porEstado(lista) {
+    const c = new Map(contar(lista, "uf").map((i) => [i.k, i]));
+    return UFS.map((u) => c.get(u) || { k: u, n: 0, v: 0 }).sort((a, b) => b.n - a.n || a.k.localeCompare(b.k));
+  }
+  const rotuloUF = (k) => NOME_UF[k] ? k + " · " + NOME_UF[k] : k;
+
   function barras(itens, rotulo) {
     if (!itens.length) return '<p class="empty">Sem dados para mostrar.</p>';
-    const max = Math.max(...itens.map((i) => i.n));
+    const max = Math.max(1, ...itens.map((i) => i.n));
     return '<div class="bars">' + itens.map((i) =>
-      `<div class="bar"><span>${esc(rotulo(i.k))}</span><span class="track"><span class="fill" style="display:block;width:${Math.max(3, Math.round(i.n / max * 100))}%"></span></span><span class="n">${i.n}</span></div>`).join("") + "</div>";
+      `<div class="bar"><span>${esc(rotulo(i.k))}</span><span class="track"><span class="fill" style="display:block;width:${i.n ? Math.max(3, Math.round(i.n / max * 100)) : 0}%"></span></span><span class="n">${i.n}</span></div>`).join("") + "</div>";
   }
 
   /* compatibilidade 0–100 com o perfil da empresa */
@@ -162,7 +173,7 @@
       try {
         const q = `${CFG.SUPABASE_URL}/rest/v1/oportunidades?select=*&order=data_encerramento_proposta.asc&limit=2000`;
         S.dados = dadosValidos(await jget(q, { headers: cabSupa() }));
-        S.fonte = "PNCP (via Avanço Licitações)"; S.geradoEm = null; S.demo = false;
+        S.fonte = "PNCP (via Ferramenta Licitações)"; S.geradoEm = null; S.demo = false;
         return;
       } catch (e) { /* cai para arquivos */ }
     }
@@ -177,6 +188,26 @@
     }
     S.dados = [];
   }
+
+  // Preços pagos e fornecedores (gerado uma vez por dia). Se o arquivo não existir, as telas avisam.
+  async function carregarPrecos() {
+    try {
+      const j = await jget("data/precos.json");
+      const txt = (v, n) => String(v == null ? "" : v).slice(0, n);
+      const num = (v) => { v = Number(v); return isFinite(v) && v >= 0 ? v : 0; };
+      S.precos = {
+        geradoEm: txt(j.gerado_em, 30),
+        itens: (Array.isArray(j.itens) ? j.itens : []).filter((i) => i && Number(i.v) > 0).map((i) => ({ d: txt(i.d, 120), u: txt(i.u, 20), v: num(i.v), q: num(i.q), dt: txt(i.dt, 10), f: txt(i.f, 80), nd: norm(i.d) })),
+        forn: (Array.isArray(j.fornecedores) ? j.fornecedores : []).filter((f) => f && /^[0-9]{14}$/.test(String(f.cnpj))).map((f) => ({
+          cnpj: String(f.cnpj), nome: txt(f.nome, 120), n: num(f.n), valor: num(f.valor), ultima: txt(f.ultima, 10),
+          ufs: (Array.isArray(f.ufs) ? f.ufs : []).map((u) => txt(u, 2)).filter((u) => UFS.includes(u)),
+          cats: (Array.isArray(f.cats) ? f.cats : []).filter((c) => CATEGORIAS[c]),
+          obj: (Array.isArray(f.obj) ? f.obj : []).slice(0, 3).map((o) => txt(o, 140)) })).map((f) => ({ ...f, busca: norm(f.nome + " " + f.cnpj + " " + f.obj.join(" ")) })),
+      };
+    } catch (e) { S.precos = null; }
+  }
+  const cnpjBR = (c) => c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+  const dataCurta = (iso) => iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "—";
 
   /* ------------------------------------------------ Supabase (login e perfil) */
   function cabSupa() {
@@ -200,10 +231,27 @@
     const cnpj = String(p.cnpj || "").replace(/\D/g, "");
     const r = await fetch(CFG.SUPABASE_URL + "/rest/v1/perfis?on_conflict=id", {
       method: "POST", headers: { ...cabSupa(), Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({ id: S.sessao.user.id, tipo: p.tipo, razao_social: (p.razao || "").slice(0, 200) || null, cnpj: cnpj.length === 14 ? cnpj : null, ufs_interesse: p.ufs, categorias_interesse: p.cats, palavras_chave: norm(p.palavras).split(/[,;\n]/).map((x) => x.trim()).filter(Boolean), valor_min: p.vmin === "" ? null : Number(p.vmin), valor_max: p.vmax === "" ? null : Number(p.vmax) }),
+      body: JSON.stringify({ id: S.sessao.user.id, tipo: p.tipo, razao_social: (p.razao || "").slice(0, 200) || null, cnpj: cnpj.length === 14 ? cnpj : null, ufs_interesse: p.ufs, categorias_interesse: p.cats, palavras_chave: norm(p.palavras).split(/[,;\n]/).map((x) => x.trim()).filter(Boolean), valor_min: p.vmin === "" ? null : Number(p.vmin), valor_max: p.vmax === "" ? null : Number(p.vmax), alerta_email: !!p.alerta }),
     });
     if (!r.ok) throw new Error("O servidor recusou o perfil (" + r.status + ").");   // antes: dizia "salvo" mesmo se falhasse
   }
+  // Depois do login, o perfil guardado na nuvem vale mais do que o do navegador (se já for de empresa).
+  async function carregarPerfilRemoto() {
+    if (!TEM_SUPABASE || !S.sessao || !ID_UUID.test(S.sessao.user.id || "")) return;
+    try {
+      const r = await jget(`${CFG.SUPABASE_URL}/rest/v1/perfis?id=eq.${S.sessao.user.id}&select=tipo,razao_social,cnpj,ufs_interesse,categorias_interesse,palavras_chave,valor_min,valor_max,plano,alerta_email`, { headers: cabSupa() });
+      const d = Array.isArray(r) && r[0]; if (!d) return;
+      S.plano = d.plano === "gratis" ? "gratis" : "pago";
+      if (d.tipo === "empresa") {
+        S.perfil = { tipo: "empresa", razao: String(d.razao_social || "").slice(0, 200), cnpj: String(d.cnpj || "").slice(0, 14),
+          ufs: (d.ufs_interesse || []).filter((u) => UFS.includes(u)), cats: (d.categorias_interesse || []).filter((c) => CATEGORIAS[c]),
+          palavras: (d.palavras_chave || []).slice(0, 50).join(", ").slice(0, 600), vmin: d.valor_min == null ? "" : String(d.valor_min), vmax: d.valor_max == null ? "" : String(d.valor_max), alerta: !!d.alerta_email };
+        gravarLocal("nexora_perfil", S.perfil);
+      } else { S.perfil.alerta = !!d.alerta_email; }
+      render();
+    } catch (e) { /* segue com o perfil do navegador */ }
+  }
+  const ID_UUID = /^[0-9a-fA-F-]{36}$/;
   async function sair() {
     const token = S.sessao && S.sessao.access_token;
     S.sessao = null; gravarSessao(null); render();
@@ -319,8 +367,13 @@
     </article>`;
   }
 
-  // Ilustração da tela (web/artes.js). Para usar uma foto, devolva um <img> aqui.
-  const arte = (k) => (window.ARTES && window.ARTES[k]) ? `<div class="arte" aria-hidden="true">${window.ARTES[k]}</div>` : "";
+  // Foto da tela (web/fotos.js). Sem foto cadastrada, nada é mostrado.
+  const FOTO_OK = /^fotos\/[A-Za-z0-9_-]+\.(jpe?g|webp|png)$/;
+  const arte = (k) => {
+    const f = window.FOTOS && window.FOTOS[k];
+    if (!f || !FOTO_OK.test(f.src || "")) return "";
+    return `<figure class="arte"><img src="${esc(f.src)}" alt="${esc(f.alt || "")}" loading="lazy" decoding="async">${f.credito ? `<figcaption>${esc(f.credito)}</figcaption>` : ""}</figure>`;
+  };
   const saudacao = () => { const h = new Date().getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; };
 
   function cabecalho(titulo, sub, extra, semAviso) {
@@ -340,7 +393,7 @@
     const nSemana = ab.filter((o) => { const d = diasAte(o.data_encerramento_proposta); return d !== null && d <= 7; }).length;
     const nNovas = ab.filter(nova).length;
     const resumo = `Hoje há ${ab.length} compras públicas aceitando propostas` + (nSemana ? `, e ${nSemana} encerram nesta semana` : "") + "." + (nNovas ? ` ${nNovas} apareceram nas últimas 24 horas.` : "");
-    return cabecalho(saudacao() + "!", resumo, '<a class="btn primary" href="#radar">Ver o radar</a> <a class="btn" href="#pesquisa">Pesquisar um produto</a>') + `
+    return cabecalho("Painel", resumo, '<a class="btn primary" href="#radar">Ver o radar</a> <a class="btn" href="#pesquisa">Pesquisar um produto</a>') + `
     <section class="grid kpis" aria-label="Indicadores">
       <div class="card kpi"><div class="l">Oportunidades abertas</div><div class="v">${ab.length}</div></div>
       <div class="card kpi"><div class="l">Valor estimado total</div><div class="v">${brlCurto(soma(ab, (o) => o.valor_estimado))}</div></div>
@@ -349,7 +402,7 @@
     </section>
     <section class="grid two" style="margin-top:16px">
       <div class="card"><h2>Por categoria</h2>${barras(contar(ab, "categoria"), (k) => CATEGORIAS[k] || k)}</div>
-      <div class="card"><h2>Estados com mais oportunidades</h2>${barras(contar(ab, "uf").slice(0, 8), (k) => k)}</div>
+      <div class="card"><h2>Oportunidades por estado</h2>${barras(porEstado(ab), rotuloUF)}</div>
     </section>
     ${prazosSalvos.length ? `<section class="card" style="margin-top:16px"><h2>Seus próximos prazos</h2>${prazosSalvos.map(itemOpp).join("")}<p style="margin:12px 0 0"><a href="#acompanhar">Ver todas as oportunidades que você acompanha</a></p></section>` : ""}
     ${meu.length ? `<section class="card" style="margin-top:16px"><h2>Combinam com o perfil da sua empresa</h2>${meu.map(itemOpp).join("")}</section>` : ""}
@@ -383,6 +436,40 @@
     </section>`;
   }
 
+  function quartil(a, p) { const s = [...a].sort((x, y) => x - y); const i = (s.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i); return s[lo] + (s[hi] - s[lo]) * (i - lo); }
+  const brl2 = (n) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  // Quanto o governo pagou (preço unitário homologado) e quem vendeu
+  function blocoPrecos(q) {
+    const P = S.precos;
+    const aviso = (t) => `<section class="card" style="margin-bottom:16px"><h2>Quanto o governo pagou</h2><p class="muted" style="margin:8px 0 0;max-width:70ch">${t}</p></section>`;
+    if (!P || !P.itens.length) return aviso("Os preços realmente pagos ainda estão sendo coletados do PNCP. Eles aparecem aqui depois da primeira coleta diária concluída.");
+    const termos = norm(q).split(/\s+/).filter((t) => t.length > 1);
+    if (!termos.length) return "";
+    const achados = P.itens.filter((i) => termos.every((t) => i.nd.includes(t)));
+    if (achados.length < 3) return aviso(`Encontramos poucos preços pagos para “${esc(q)}” (${achados.length}). Tente um termo mais geral.`);
+    // preços de unidades diferentes (caixa, resma, unidade) não se misturam: usamos a unidade mais comum
+    const porUn = new Map(); achados.forEach((i) => { const u = norm(i.u) || "—"; porUn.set(u, (porUn.get(u) || 0) + 1); });
+    const un = [...porUn.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const base = achados.filter((i) => (norm(i.u) || "—") === un);
+    const v = base.map((i) => i.v);
+    const nome = (base.find((i) => i.u) || {}).u || "unidade";
+    const ven = new Map(); achados.forEach((i) => { if (i.f) { const e = ven.get(i.f) || { n: 0, tot: 0 }; e.n++; e.tot += i.v * (i.q || 1); ven.set(i.f, e); } });
+    const topVen = [...ven.entries()].sort((a, b) => b[1].n - a[1].n || b[1].tot - a[1].tot).slice(0, 5);
+    const exemplos = [...base].sort((a, b) => b.dt.localeCompare(a.dt)).slice(0, 8);
+    return `<section class="card" style="margin-bottom:16px"><h2>Quanto o governo pagou por “${esc(q)}”</h2>
+      <p class="muted small" style="margin:4px 0 12px">Preço por <b>${esc(nome)}</b>, nas compras já concluídas (${base.length} preço${base.length === 1 ? "" : "s"} pago${base.length === 1 ? "" : "s"}). Fonte: resultados dos itens no PNCP.</p>
+      <div class="grid kpis" style="margin-bottom:14px">
+        <div class="card kpi"><div class="l">Preço típico (mediana)</div><div class="v">${brl2(mediana(v))}</div></div>
+        <div class="card kpi"><div class="l">Faixa comum (metade dos preços)</div><div class="v" style="font-size:19px">${brl2(quartil(v, 0.25))} a ${brl2(quartil(v, 0.75))}</div></div>
+        <div class="card kpi"><div class="l">Menor e maior</div><div class="v" style="font-size:19px">${brl2(Math.min(...v))} a ${brl2(Math.max(...v))}</div></div>
+      </div>
+      <div class="note" style="margin-bottom:14px">Use como referência para montar a sua proposta. Itens com o mesmo nome podem ter especificações bem diferentes (tamanho, marca, qualidade): confira o edital.</div>
+      <div class="tabela"><table><thead><tr><th>Item</th><th>Preço por ${esc(nome)}</th><th>Quantidade</th><th>Quem vendeu</th><th>Data</th></tr></thead><tbody>
+        ${exemplos.map((i) => `<tr><td>${esc(i.d)}</td><td>${brl2(i.v)}</td><td>${i.q ? esc(String(i.q).replace(".", ",")) : "—"}</td><td>${esc(i.f || "—")}</td><td>${esc(dataCurta(i.dt))}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${topVen.length ? `<h3 style="margin:16px 0 6px;font-size:15px">Quem mais vendeu isso</h3><ul class="dd sim">${topVen.map(([n, e]) => `<li>${esc(n)}: ${e.n} venda${e.n === 1 ? "" : "s"}</li>`).join("")}</ul>` : ""}</section>`;
+  }
+
   function vPesquisa() {
     const q = S.busca.trim();
     let res = "";
@@ -398,12 +485,13 @@
         </section>
         <div class="note" style="margin-bottom:16px">Os valores são o <b>total estimado de cada compra</b> (vários itens juntos), não o preço de uma unidade. Use como referência do tamanho do mercado; o preço por item está no edital.</div>
         <section class="grid two" style="margin-bottom:16px">
-          <div class="card"><h2>Onde mais se compra</h2>${barras(contar(lista, "uf").slice(0, 8), (k) => k)}</div>
+          <div class="card"><h2>Onde se compra (por estado)</h2>${barras(porEstado(lista), rotuloUF)}</div>
           <div class="card"><h2>Quem compra</h2>${barras(contar(lista, "esfera"), (k) => ({ M: "Municipal", E: "Estadual", F: "Federal", D: "Distrital" }[k] || k))}</div>
         </section>
+        ${blocoPrecos(q)}
         <section class="card"><h2>Compras com “${esc(q)}”</h2>${ordenar(lista, "recentes").slice(0, 30).map(itemOpp).join("")}</section>`
         : `<div class="card"><h2>Nenhuma compra encontrada para “${esc(q)}”</h2>
-            <p class="muted" style="margin:8px 0 0;max-width:70ch">Isso não quer dizer que ninguém compre isso. Quer dizer que o produto não está na base que o Avanço Licitações carregou até agora${S.buscaCat ? " (ou não está na categoria escolhida)" : ""}. Você pode:</p>
+            <p class="muted" style="margin:8px 0 0;max-width:70ch">Isso não quer dizer que ninguém compre isso. Quer dizer que o produto não está na base que A Ferramenta Licitações carregou até agora${S.buscaCat ? " (ou não está na categoria escolhida)" : ""}. Você pode:</p>
             <ul class="muted" style="margin:8px 0 0;padding-left:20px">
               <li>tentar um termo mais simples, no singular ou sem acento (“cadeira”, “papel”, “medicamento”);</li>
               ${S.buscaCat ? '<li>escolher “Todas as categorias” no filtro acima;</li>' : ""}
@@ -457,7 +545,7 @@
     </section>
     <section class="grid two" style="margin-top:16px">
       <div class="card"><h2>Por categoria</h2>${barras(contar(ab, "categoria"), (k) => CATEGORIAS[k] || k)}</div>
-      <div class="card"><h2>Por estado</h2>${barras(contar(ab, "uf").slice(0, 8), (k) => k)}</div>
+      <div class="card"><h2>Por estado</h2>${barras(porEstado(ab), rotuloUF)}</div>
     </section>
     <section class="card" style="margin-top:16px"><h2>Maiores oportunidades do período</h2>${topValor.length ? topValor.map(itemOpp).join("") : '<p class="empty">Sem oportunidades neste período.</p>'}</section>
     <p class="muted small" style="margin-top:14px">Fonte: ${esc(S.fonte || "PNCP")}${S.geradoEm ? " · atualizado em " + esc(dataHoraBR(S.geradoEm)) : ""}. Confirme sempre as informações no edital original.</p>`;
@@ -497,6 +585,8 @@
           <div class="field"><label for="p-vmax">Valor máximo (R$)</label><input id="p-vmax" name="vmax" type="number" min="0" value="${esc(p.vmax)}"></div></div>
         </div>
       </div>
+      ${logado ? `<div id="bloco-alerta" ${p.tipo === "empresa" ? "" : "hidden"} style="margin-top:16px"><label class="chip"><input type="checkbox" name="alerta"${p.alerta ? " checked" : ""}>Receber alertas por e-mail quando surgir compra nova que combina com o perfil</label>
+        <p class="small muted" style="margin:6px 0 0;max-width:70ch">${S.plano === "pago" ? "Seu plano pago está ativo: os avisos chegam no e-mail da sua conta." : "Os alertas só são enviados no plano pago, que ainda não está à venda. Você já pode deixar marcado."} Para parar, é só desmarcar aqui.</p></div>` : ""}
       <p style="margin:18px 0 0"><button class="btn primary">Salvar perfil</button> <span id="p-ok" class="small muted" role="status"></span></p>
     </form>`;
   }
@@ -544,25 +634,109 @@
         : '<p class="empty">Você ainda não acompanha nenhuma oportunidade.<br>No <a href="#radar">Radar</a>, clique em “Acompanhar” nas que interessam. Elas aparecem aqui, com a situação e suas anotações.</p>'}</section>`;
   }
 
+  /* ------------------------------------------------ mercado: órgãos que estão comprando */
+  const ESFERA = { F: "Federal", E: "Estadual", M: "Municipal" };
+  function orgaos() {
+    const m = new Map();
+    for (const o of abertas()) {
+      if (!o.orgao_nome) continue;
+      const k = o.orgao_nome + "|" + (o.uf || "") + "|" + (o.municipio || "");
+      let r = m.get(k);
+      if (!r) { r = { nome: o.orgao_nome, uf: o.uf || "", mun: o.municipio || "", esfera: o.esfera || "", n: 0, valor: 0, cats: {}, prazo: null }; m.set(k, r); }
+      r.n++; r.valor += Number(o.valor_estimado) > 0 ? Number(o.valor_estimado) : 0;
+      if (o.categoria) r.cats[o.categoria] = (r.cats[o.categoria] || 0) + 1;
+      const d = diasAte(o.data_encerramento_proposta);
+      if (d !== null && (r.prazo === null || d < r.prazo)) r.prazo = d;
+    }
+    return [...m.values()];
+  }
+  function vMercado() {
+    const M = S.mkt;
+    const todos = orgaos();
+    const q = norm(M.q.trim());
+    let lista = todos.filter((r) => (!M.uf || r.uf === M.uf) && (!M.esfera || r.esfera === M.esfera) && (!q || norm(r.nome + " " + r.mun).includes(q)));
+    lista.sort(M.ordem === "valor" ? (a, b) => b.valor - a.valor : M.ordem === "nome" ? (a, b) => a.nome.localeCompare(b.nome, "pt-BR") : (a, b) => b.n - a.n);
+    const opt = (v, t, sel) => `<option value="${esc(v)}"${v === sel ? " selected" : ""}>${esc(t)}</option>`;
+    const card = (r) => {
+      const top = Object.entries(r.cats).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => CATEGORIAS[c]).filter(Boolean);
+      return `<article class="org">
+        <div><h3>${esc(r.nome)}</h3>
+          <p class="small muted">${esc(ESFERA[r.esfera] || "")}${r.mun ? " · " + esc(r.mun) : ""}${r.uf ? " / " + esc(r.uf) : ""}</p>
+          ${top.length ? `<p class="small" style="margin:6px 0 0">Compra principalmente: ${top.map(esc).join(", ")}</p>` : ""}</div>
+        <div class="org-n"><b>${r.n}</b> <span>${r.n === 1 ? "compra aberta" : "compras abertas"}</span>
+          ${r.valor > 0 ? `<span class="small muted">${esc(brlCurto(r.valor))} estimados</span>` : ""}
+          ${r.prazo !== null ? `<span class="small muted">${r.prazo <= 0 ? "encerra hoje" : "próximo prazo em " + r.prazo + (r.prazo === 1 ? " dia" : " dias")}</span>` : ""}
+          <button class="btn sm" data-acao="ver-orgao" data-q="${esc(r.nome)}" data-uf="${esc(r.uf)}">Ver as compras</button></div>
+      </article>`;
+    };
+    const nUF = new Set(todos.map((r) => r.uf).filter(Boolean)).size;
+    const corpo = `
+    <section class="grid kpis" aria-label="O mercado hoje">
+      <div class="card kpi"><div class="l">Órgãos comprando agora</div><div class="v">${todos.length}</div></div>
+      <div class="card kpi"><div class="l">Estados</div><div class="v">${nUF}</div></div>
+      <div class="card kpi"><div class="l">Compras abertas</div><div class="v">${abertas().length}</div></div>
+    </section>
+    <form class="card filters" id="filtros-mkt" aria-label="Filtrar órgãos" style="margin-bottom:16px">
+      <div class="field"><label for="m-q">Buscar órgão ou cidade</label><input id="m-q" name="q" value="${esc(M.q)}" placeholder="ex.: prefeitura, universidade, Fortaleza"></div>
+      <div class="field"><label for="m-uf">Estado</label><select id="m-uf" name="uf">${opt("", "Todos", M.uf)}${UFS.map((u) => opt(u, u, M.uf)).join("")}</select></div>
+      <div class="field"><label for="m-esf">Esfera</label><select id="m-esf" name="esfera">${opt("", "Todas", M.esfera)}${Object.entries(ESFERA).map(([k, v]) => opt(k, v, M.esfera)).join("")}</select></div>
+      <div class="field"><label for="m-ord">Ordenar por</label><select id="m-ord" name="ordem">${opt("compras", "Mais compras abertas", M.ordem)}${opt("valor", "Maior valor estimado", M.ordem)}${opt("nome", "Nome", M.ordem)}</select></div>
+    </form>
+    <p class="muted small" style="margin:0 2px 10px" role="status">${lista.length} órgão${lista.length === 1 ? "" : "s"} encontrado${lista.length === 1 ? "" : "s"}.</p>
+    <section class="card">${lista.length ? lista.slice(0, M.mostrar).map(card).join("") : '<p class="empty">Nenhum órgão com esses filtros.</p>'}
+      ${lista.length > M.mostrar ? `<p style="text-align:center;margin:14px 0 0"><button class="btn" data-acao="mais-orgaos">Mostrar mais órgãos</button></p>` : ""}</section>
+    `;
+    const abas = `<div class="chips no-print" style="margin-bottom:14px" role="tablist">
+      <button class="chip${M.aba === "orgaos" ? " ativo" : ""}" data-acao="mkt-aba" data-v="orgaos" role="tab" aria-selected="${M.aba === "orgaos"}">Órgãos que compram</button>
+      <button class="chip${M.aba === "fornecedores" ? " ativo" : ""}" data-acao="mkt-aba" data-v="fornecedores" role="tab" aria-selected="${M.aba === "fornecedores"}">Fornecedores que vendem</button></div>`;
+    const sub = M.aba === "fornecedores" ? "Quem está vendendo para o governo: empresas com contratos assinados recentemente, o que vendem e onde." : "Quem está comprando agora. Cada órgão público com compras abertas, com o que ele compra e quando fecha o prazo.";
+    return cabecalho("Mercado", sub, "", true) + abas + (M.aba === "fornecedores" ? vFornecedores() : corpo + canais);
+  }
+  const canais = `<section class="grid two" style="margin-top:16px">
+      <div class="card"><h2>Para fornecedores e distribuidoras</h2>
+        <p style="margin:8px 0 0;max-width:62ch">Na aba “Fornecedores que vendem” você já vê quem vende para o governo, com dados públicos do PNCP. Um cadastro próprio, para que órgãos e revendedores encontrem a sua empresa, depende do login e está em desenvolvimento.</p></div>
+      <div class="card"><h2>Para órgãos públicos</h2>
+        <p style="margin:8px 0 0;max-width:62ch">As compras dos órgãos já aparecem aqui assim que são publicadas no PNCP, sem cadastro. Um canal próprio para o órgão divulgar suas necessidades e receber fornecedores está em desenvolvimento.</p></div>
+    </section>`;
+
+  function vFornecedores() {
+    const P = S.precos, F = S.fq;
+    if (!P || !P.forn.length) return `<div class="card"><h2>Fornecedores ainda não carregados</h2><p class="muted" style="margin:8px 0 0;max-width:70ch">Os dados de quem assina contratos com o governo são coletados do PNCP uma vez por dia. Eles aparecem aqui depois da primeira coleta diária concluída.</p></div>` + canais;
+    const q = norm(F.q.trim());
+    const lista = P.forn.filter((f) => (!F.uf || f.ufs.includes(F.uf)) && (!F.cat || f.cats.includes(F.cat)) && (!q || f.busca.includes(q)))
+      .sort(F.ordem === "valor" ? (a, b) => b.valor - a.valor : F.ordem === "recente" ? (a, b) => b.ultima.localeCompare(a.ultima) : (a, b) => b.n - a.n || b.valor - a.valor);
+    const opt = (v, t, sel) => `<option value="${esc(v)}"${v === sel ? " selected" : ""}>${esc(t)}</option>`;
+    const card = (f) => `<article class="org"><div><h3>${esc(f.nome)}</h3>
+        <p class="small muted">CNPJ ${esc(cnpjBR(f.cnpj))}${f.ufs.length ? " · vendeu em " + f.ufs.map(esc).join(", ") : ""}</p>
+        ${f.cats.length ? `<p class="small" style="margin:6px 0 0">Costuma vender: ${f.cats.map((c) => esc(CATEGORIAS[c])).join(", ")}</p>` : ""}
+        ${f.obj.length ? `<p class="small muted" style="margin:6px 0 0">Exemplo: ${esc(f.obj[0])}</p>` : ""}</div>
+      <div class="org-n"><b>${f.n}</b> <span>${f.n === 1 ? "contrato" : "contratos"}</span>
+        ${f.valor > 0 ? `<span class="small muted">${esc(brlCurto(f.valor))} contratados</span>` : ""}
+        ${f.ultima ? `<span class="small muted">último em ${esc(dataCurta(f.ultima))}</span>` : ""}</div></article>`;
+    return `<p class="muted small" style="margin:0 2px 12px">Empresas (CNPJ) com contratos assinados com órgãos públicos nos últimos dias, segundo o PNCP${P.geradoEm ? ", atualizado em " + esc(dataHoraBR(P.geradoEm)) : ""}. Pessoas físicas não são listadas.</p>
+    <form class="card filters" id="filtros-forn" aria-label="Filtrar fornecedores" style="margin-bottom:16px">
+      <div class="field"><label for="fq-q">Buscar por nome, CNPJ ou produto</label><input id="fq-q" name="q" value="${esc(F.q)}" placeholder="ex.: cadeira, medicamento, 12.345.678"></div>
+      <div class="field"><label for="fq-uf">Vendeu em</label><select id="fq-uf" name="uf">${opt("", "Todos os estados", F.uf)}${UFS.map((u) => opt(u, u, F.uf)).join("")}</select></div>
+      <div class="field"><label for="fq-cat">Categoria</label><select id="fq-cat" name="cat">${opt("", "Todas", F.cat)}${Object.entries(CATEGORIAS).filter(([k]) => k !== "outros").map(([k, v]) => opt(k, v, F.cat)).join("")}</select></div>
+      <div class="field"><label for="fq-ord">Ordenar por</label><select id="fq-ord" name="ordem">${opt("n", "Mais contratos", F.ordem)}${opt("valor", "Maior valor", F.ordem)}${opt("recente", "Mais recentes", F.ordem)}</select></div>
+    </form>
+    <p class="muted small" style="margin:0 2px 10px" role="status">${lista.length} fornecedor${lista.length === 1 ? "" : "es"} encontrado${lista.length === 1 ? "" : "s"}.</p>
+    <section class="card">${lista.length ? lista.slice(0, F.mostrar).map(card).join("") : '<p class="empty">Nenhum fornecedor com esses filtros.</p>'}
+      ${lista.length > F.mostrar ? '<p style="text-align:center;margin:14px 0 0"><button class="btn" data-acao="mais-forn">Mostrar mais</button></p>' : ""}</section>` + canais;
+  }
+
   function vAjuda() {
     if (!CONTEUDO.faq.length) {
       return cabecalho("Central de ajuda", "Respostas para as dúvidas mais comuns.", "", true) + `<div class="card"><h2>Não foi possível carregar as respostas</h2>
         <p class="muted" style="margin:8px 0 0;max-width:70ch">O arquivo <b>conteudo.js</b> não foi encontrado. Confira se ele está dentro da pasta <b>web</b>, ao lado do <b>app.js</b> e do <b>index.html</b>, e aperte Ctrl + F5.</p></div>`;
     }
-    const q = norm(S.ajudaQ.trim());
-    const grupos = CONTEUDO.faq.map((g) => ({ grupo: g.grupo, itens: g.itens.filter((i) => !q || norm(i.p + " " + i.r).includes(q)) })).filter((g) => g.itens.length);
-    const total = grupos.reduce((n, g) => n + g.itens.length, 0);
     const paragrafos = (t) => String(t).split(/\n\n/).map((p) => `<p>${esc(p)}</p>`).join("");
-    return cabecalho("Central de ajuda", "Respostas simples para as dúvidas mais comuns sobre o Avanço Licitações e sobre compras públicas.", "", true) + `
-      <div class="field" style="max-width:520px;margin-bottom:6px"><label for="ajuda-q">Buscar nas respostas</label>
-        <input id="ajuda-q" type="search" value="${esc(S.ajudaQ)}" placeholder="Ex.: MEI, pregão, documentos" autocomplete="off"></div>
-      <p class="muted small" style="margin:0 2px 14px" role="status">${q ? total + " resposta" + (total === 1 ? "" : "s") + " encontrada" + (total === 1 ? "" : "s") : "Escolha uma pergunta ou use a busca."}</p>
-      ${grupos.length ? grupos.map((g) => `<section class="card faq" style="margin-bottom:16px"><h2>${esc(g.grupo)}</h2>
-        ${g.itens.map((i) => `<details${q ? " open" : ""}><summary>${esc(i.p)}</summary><div class="faq-r">${paragrafos(i.r)}</div></details>`).join("")}</section>`).join("")
-        : `<div class="card"><h2>Nenhuma resposta para “${esc(S.ajudaQ)}”</h2><p class="muted" style="margin:8px 0 0">Tente uma palavra mais simples (“documentos”, “MEI”, “prazo”) ou veja as perguntas por assunto, limpando a busca.</p></div>`}
+    return cabecalho("Central de ajuda", "Explicações completas sobre a ferramenta e sobre como funcionam as compras públicas.", "", true) + `
+      ${CONTEUDO.faq.map((g) => `<section class="card faq" style="margin-bottom:16px"><h2>${esc(g.grupo)}</h2>
+        ${g.itens.map((i) => `<details><summary>${esc(i.p)}</summary><div class="faq-r">${paragrafos(i.r)}</div></details>`).join("")}</section>`).join("")}
       <section class="card"><h2>Não encontrou sua dúvida?</h2>
         ${emailContato
-          ? `<p class="muted" style="margin:8px 0 12px">Escreva para a gente. Quando a pergunta for comum, ela entra aqui na Central de ajuda.</p><a class="btn primary" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Dúvida sobre o Avanço Licitações")}">Enviar uma dúvida</a>`
+          ? `<p class="muted" style="margin:8px 0 12px">Escreva para a gente. Quando a pergunta for comum, ela entra aqui na Central de ajuda.</p><a class="btn primary" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Dúvida sobre A Ferramenta Licitações")}">Enviar uma dúvida</a>`
           : '<p class="muted" style="margin:8px 0 0">O canal para enviar dúvidas será ativado em breve.</p>'}
       </section>
       <p class="muted small" style="margin-top:14px">As respostas são orientações gerais e não substituem o edital nem aconselhamento jurídico ou contábil.</p>`;
@@ -582,7 +756,7 @@
     const lista = (arr, cls) => `<ul class="dd ${cls}">${(arr || []).map((t) => `<li>${esc(t)}</li>`).join("")}</ul>`;
     const cats = Object.entries(CATEGORIAS).filter(([k]) => k !== "outros").map(([, v]) => `<span class="chip">${esc(v)}</span>`).join("");
     const contato = emailContato
-      ? `<a class="btn" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Contato pelo site Avanço Licitações")}">Falar com a gente</a>` : "";
+      ? `<a class="btn" href="mailto:${esc(emailContato)}?subject=${encodeURIComponent("Contato pelo site Ferramenta Licitações")}">Falar com a gente</a>` : "";
     const equipe = (Q.equipe || "").trim()
       ? sec("Quem está por trás", Q.equipe.split(/\n\s*\n/).map((p) => `<p>${esc(p.trim())}</p>`).join(""))
       : "";
@@ -608,12 +782,8 @@
       <p class="small muted" style="margin:18px 0 8px">Categorias que acompanhamos hoje:</p><div class="chips">${cats}</div>`)}
     ${sec("O que fazemos e o que não fazemos", `<div class="grid two"><div><h3>O que fazemos</h3>${lista(Q.fazemos, "sim")}</div><div><h3>O que não fazemos</h3>${lista(Q.naoFazemos, "nao")}</div></div>`)}
     ${sec("De onde vêm os dados", `<p>${esc(Q.fonte)}</p><p><a href="https://pncp.gov.br" target="_blank" rel="noopener noreferrer">Conhecer o PNCP (pncp.gov.br)</a></p>`)}
-    ${sec("No que acreditamos", `<div class="principios">${(Q.principios || []).map((p) => `<div><h3>${esc(p.t)}</h3><p>${esc(p.d)}</p></div>`).join("")}</div>`)}
     ${equipe}
-    <section class="qs-cta">
-      <div><h2>Pronto para ver o que o governo está comprando?</h2><p>Comece pela pesquisa: não precisa de cadastro nem de empresa.</p></div>
-      <div class="tl-acoes"><a class="btn primary" href="#pesquisa">Pesquisar um produto</a><a class="btn" href="#ajuda">Tirar uma dúvida</a>${contato}</div>
-    </section>`;
+    ${contato ? `<section class="qs-cta"><div><h2>Ficou com alguma dúvida?</h2></div><div class="tl-acoes"><a class="btn" href="#ajuda">Central de ajuda</a>${contato}</div></section>` : ""}`;
   }
 
   function vPlanos() {
@@ -625,9 +795,9 @@
     const li = (i) => { const [txt, cls] = ROT[i.s] || ["", "off"]; return `<li><div><b>${esc(i.t)}</b> <span class="tag ${cls}">${esc(txt)}</span></div>${i.d ? `<p class="small muted" style="margin:2px 0 0">${esc(i.d)}</p>` : ""}</li>`; };
     const pr = CONTEUDO.planos.preco;
     const preco = pr ? `<p class="preco"><b>${esc(pr.valor)}</b> <span>${esc(pr.periodo)}</span></p><p class="small muted" style="margin:0 0 6px">Preço previsto. Ainda não estamos cobrando.</p>` : "";
-    const corpo = encodeURIComponent("Olá! Quero ser avisado quando os planos do Avanço Licitações estiverem disponíveis.\n\nMinha empresa vende: ");
+    const corpo = encodeURIComponent("Olá! Quero ser avisado quando os planos da Ferramenta Licitações estiverem disponíveis.\n\nMinha empresa vende: ");
     return cabecalho("Planos", "O que já funciona hoje e o que estamos construindo para o plano pago.", "", true) + `
-      <div class="note" style="margin-bottom:16px"><b>Nada é cobrado hoje.</b> O plano pago custará R$ 7,99 por mês e só começa quando o login, o pagamento e os avisos por e-mail estiverem prontos. Os itens abaixo mostram, com honestidade, o que já existe e o que ainda não.</div>
+      <div class="note" style="margin-bottom:16px"><b>Nada é cobrado hoje.</b> O plano pago custará R$ 1,99 por mês e só começa quando o login, o pagamento e os avisos por e-mail estiverem prontos. Os itens abaixo mostram, com honestidade, o que já existe e o que ainda não.</div>
       <section class="grid two">
         <div class="card plano"><h2>Gratuito</h2><p class="muted small" style="margin:4px 0 8px">Para pesquisar e conhecer a plataforma.</p><ul>${CONTEUDO.planos.gratis.map(li).join("")}</ul></div>
         <div class="card plano destaque"><h2>Plano pago</h2>${preco}<p class="muted small" style="margin:4px 0 8px">Para empresas que querem ganhar tempo e não perder prazo. Inclui tudo do plano gratuito.</p><ul>${CONTEUDO.planos.pago.map(li).join("")}</ul>
@@ -635,7 +805,7 @@
       </section>`;
   }
 
-  const VIEWS = { quemsomos: vQuemSomos, painel: vPainel, radar: vRadar, pesquisa: vPesquisa, acompanhar: vAcompanhar, relatorios: vRelatorios, planos: vPlanos, ajuda: vAjuda, conta: vConta };
+  const VIEWS = { quemsomos: vQuemSomos, painel: vPainel, radar: vRadar, pesquisa: vPesquisa, mercado: vMercado, acompanhar: vAcompanhar, relatorios: vRelatorios, planos: vPlanos, ajuda: vAjuda, conta: vConta };
   function viewAtual() { const h = location.hash.replace("#", ""); return Object.prototype.hasOwnProperty.call(VIEWS, h) ? h : "quemsomos"; }
 
   function render(manterFoco) {
@@ -653,8 +823,9 @@
 
   document.addEventListener("input", (e) => {
     const t = e.target;
+    if (t.closest("#filtros-forn")) { S.fq[t.name] = t.value; S.fq.mostrar = 30; render(true); return; }
+    if (t.closest("#filtros-mkt")) { S.mkt[t.name] = t.value; S.mkt.mostrar = 30; render(true); return; }
     if (t.closest("#filtros")) { S.filtros[t.name] = t.value; S.mostrar = PAGINA; render(true); }
-    if (t.id === "ajuda-q") { S.ajudaQ = t.value; render(true); }
     if (t.classList && t.classList.contains("nota") && S.salvos[t.dataset.id]) { S.salvos[t.dataset.id].nota = t.value; gravarSalvos(); } // sem redesenhar, para não perder o cursor
   });
   document.addEventListener("change", (e) => {
@@ -673,7 +844,7 @@
       const cats = TIPOS_EMPRESA[t.dataset.tipo] || [];
       if (t.checked) cats.forEach((c) => { const box = document.querySelector(`input[name=cats][value="${c}"]`); if (box) box.checked = true; });
     }
-    if (t.name === "tipo" && t.closest("#form-perfil")) { $("#bloco-empresa").hidden = t.value !== "empresa"; }
+    if (t.name === "tipo" && t.closest("#form-perfil")) { $("#bloco-empresa").hidden = t.value !== "empresa"; const ba = $("#bloco-alerta"); if (ba) ba.hidden = t.value !== "empresa"; }
   });
   document.addEventListener("submit", (e) => {
     const f = e.target;
@@ -681,7 +852,7 @@
     if (f.id === "form-perfil") {
       e.preventDefault();
       const d = new FormData(f);
-      S.perfil = { tipo: d.get("tipo") || "visitante", razao: d.get("razao") || "", cnpj: d.get("cnpj") || "", ufs: d.getAll("ufs"), cats: d.getAll("cats"), palavras: d.get("palavras") || "", vmin: d.get("vmin") || "", vmax: d.get("vmax") || "" };
+      S.perfil = { tipo: d.get("tipo") || "visitante", razao: d.get("razao") || "", cnpj: d.get("cnpj") || "", ufs: d.getAll("ufs"), cats: d.getAll("cats"), palavras: d.get("palavras") || "", alerta: d.get("alerta") === "on", vmin: d.get("vmin") || "", vmax: d.get("vmax") || "" };
       gravarLocal("nexora_perfil", S.perfil);
       $("#p-ok").textContent = "Salvando…";
       salvarPerfilRemoto().then(() => { $("#p-ok").textContent = "Perfil salvo."; }).catch(() => { $("#p-ok").textContent = "Salvo neste navegador. Não foi possível salvar na nuvem agora."; });
@@ -692,6 +863,10 @@
     if (b.dataset.busca) { S.busca = b.dataset.busca; render(); return; }
     const a = b.dataset.acao;
     if (a === "limpar") { S.filtros = { q: "", uf: "", cat: "", tipo: "", vmin: "", vmax: "", prazo: "", novas: "", ordem: "prazo" }; S.mostrar = PAGINA; render(); }
+    if (a === "mkt-aba") { S.mkt.aba = b.dataset.v === "fornecedores" ? "fornecedores" : "orgaos"; render(); return; }
+    if (a === "mais-forn") { S.fq.mostrar += 30; render(); }
+    if (a === "mais-orgaos") { S.mkt.mostrar += 30; render(); }
+    if (a === "ver-orgao") { S.filtros = { q: (b.dataset.q || "").slice(0, 200), uf: UFS.includes(b.dataset.uf) ? b.dataset.uf : "", cat: "", tipo: "", vmin: "", vmax: "", prazo: "", novas: "", ordem: "prazo" }; S.mostrar = PAGINA; location.hash = "#radar"; return; }
     if (a === "mais") { S.mostrar += PAGINA; render(); }
     if (a === "salvar" && ID_OK.test(b.dataset.id || "")) { alternarSalvo(b.dataset.id); render(); }
     if (a === "remover" && ID_OK.test(b.dataset.id || "")) { delete S.salvos[b.dataset.id]; gravarSalvos(); render(); }
@@ -700,7 +875,7 @@
     if (a === "csv") {
       const lista = b.dataset.fonte === "radar" ? ordenar(filtrar(abertas(), S.filtros), S.filtros.ordem)
         : abertas().filter((o) => { const d = diasAte(o.data_encerramento_proposta); return d !== null && d <= Number(S.relDias || 30); });
-      baixarCSV(lista, "avanco-licitacoes-oportunidades.csv");
+      baixarCSV(lista, "ferramenta-licitacoes-oportunidades.csv");
     }
     if (a === "login") { $("#lg-erro").textContent = ""; $("#dlg-login").showModal(); }
     if (a === "sair") sair();
@@ -711,7 +886,7 @@
     $("#lg-erro").textContent = "";
     if (!email || !senha) { $("#lg-erro").textContent = "Informe o e-mail e a senha."; return; }
     if (modo === "criar" && (senha.length < 10 || senha.length > 72)) { $("#lg-erro").textContent = "Escolha uma senha de 10 a 72 caracteres. Uma frase longa é mais segura que uma palavra complicada."; return; }
-    try { await authSupa(modo, email, senha); $("#dlg-login").close(); render(); }
+    try { await authSupa(modo, email, senha); $("#dlg-login").close(); render(); carregarPerfilRemoto(); }
     catch (err) { $("#lg-erro").textContent = err.message; }
   }
   $("#form-login").addEventListener("submit", (e) => { e.preventDefault(); if (e.submitter && e.submitter.value === "cancel") { $("#dlg-login").close(); return; } enviarLogin("entrar"); });
@@ -719,4 +894,6 @@
   window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
 
   carregar().then(() => render());
+  carregarPerfilRemoto();
+  carregarPrecos().then(() => { if (["pesquisa", "mercado"].includes(viewAtual())) render(true); });
 })();

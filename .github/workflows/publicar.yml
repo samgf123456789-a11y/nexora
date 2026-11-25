@@ -47,7 +47,9 @@ jobs:
       - name: Restaurar dados da última execução
         uses: actions/cache@v4
         with:
-          path: web/data/oportunidades.json
+          path: |
+            web/data/oportunidades.json
+            web/data/precos.json
           key: dados-${{ github.run_id }}
           restore-keys: dados-
 
@@ -79,6 +81,26 @@ jobs:
         if: steps.modo.outputs.completa != 'true'
         continue-on-error: true
         run: python collector/pncp_collector.py --modo publicacao --dias 1 --memoria
+
+      # Uma vez por dia: contratos recentes (quem ganhou) e preços unitários pagos. Se falhar, vale o que já existia.
+      - name: Preços pagos e fornecedores vencedores
+        if: steps.modo.outputs.completa == 'true'
+        continue-on-error: true
+        run: python collector/pncp_precos.py
+
+      # Alertas por e-mail para quem tem plano pago. Sem os segredos configurados, não faz nada.
+      - name: Enviar alertas por e-mail
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          ALERTA_REMETENTE: ${{ secrets.ALERTA_REMETENTE }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: python collector/enviar_alertas.py web/data/oportunidades.json
 
       - name: Avisar se a coleta falhou
         if: steps.completa.outcome == 'failure' || steps.leve.outcome == 'failure'

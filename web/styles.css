@@ -1,4 +1,4 @@
-/* Avanço Licitações — identidade: verde-mata + marca-texto amarelo + carimbo vermelho (só para urgência). */
+/* Ferramenta Licitações — identidade: verde-mata + marca-texto amarelo + carimbo vermelho (só para urgência). */
 :root{
   --ink:#11302A; --g:#0F6B4F; --g-d:#0A4A37; --g-soft:#E3F1EA;
   --y:#F4C84A; --y-soft:#FFF4CC; --r:#B83A22; --r-soft:#FBE8E2;
@@ -40,12 +40,6 @@ a{color:var(--g)} button,input,select{font:inherit;color:inherit}
 .topline h1{max-width:20ch}
 .topline p{margin:8px 0 0;color:var(--muted);max-width:56ch;font-size:17px}
 .tl-acoes{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
-.arte svg{display:block;width:100%;height:auto}
-.arte .x{fill:none;stroke:var(--ink);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.arte .fg{fill:var(--g)} .arte .fd{fill:var(--g-d)} .arte .fs{fill:var(--g-soft)} .arte .fy{fill:var(--y)}
-.arte .fr{fill:var(--r)} .arte .fp{fill:#fff} .arte .fk{fill:var(--ink)} .arte .fl{fill:var(--line)}
-.arte .sw{stroke:#fff} .arte .sr{stroke:var(--r)} .arte .sl{stroke:var(--line);stroke-width:1.5}
-.arte text{font-family:var(--f-display);font-weight:700}
 .banner{background:var(--y-soft);color:#5A3A00;border:1px solid #E8CF7A;padding:10px 14px;border-radius:var(--r-sm);margin-bottom:18px;font-size:14.5px}
 
 /* ---------- componentes ---------- */
@@ -79,7 +73,7 @@ a{color:var(--g)} button,input,select{font:inherit;color:inherit}
 
 /* ---------- barras ---------- */
 .bars{display:flex;flex-direction:column;gap:10px;margin-top:14px}
-.bar{display:grid;grid-template-columns:140px 1fr 64px;gap:10px;align-items:center;font-size:14px}
+.bar{display:grid;grid-template-columns:190px 1fr 56px;gap:10px;align-items:center;font-size:14px}
 .bar .track{height:10px;background:#E9EEE7;border-radius:3px;overflow:hidden}
 .bar .fill{height:100%;background:var(--g);border-radius:3px}
 .bar .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
@@ -211,3 +205,22 @@ dialog::backdrop{background:rgba(17,48,42,.55)}
   .top,.foot,.no-print,.btn,.arte,.guia{display:none!important} .main{padding:0;max-width:none}
   body{background:#fff} .card{border-color:#ccc;break-inside:avoid}
 }
+
+/* Fotos (web/fotos.js) */
+.arte{margin:0}
+.arte img{display:block;width:100%;height:100%;max-height:240px;object-fit:cover;border-radius:10px}
+.arte figcaption{font-size:11px;color:var(--muted,#5a6b66);margin-top:4px}
+/* Mercado */
+.org{display:grid;grid-template-columns:1fr auto;gap:16px;padding:14px 0;border-top:1px solid var(--line)}
+.org:first-child{border-top:0}
+.org h3{margin:0;font-size:16px}
+.org-n{display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right}
+.org-n b{font-family:var(--f-display);font-size:24px;line-height:1}
+.org-n .btn{margin-top:8px}
+@media (max-width:640px){.org{grid-template-columns:1fr}.org-n{align-items:flex-start;text-align:left}}
+@media (max-width:640px){.bar{grid-template-columns:130px 1fr 44px;font-size:13px}}
+.tabela{overflow-x:auto}
+.tabela table{width:100%;border-collapse:collapse;font-size:14px}
+.tabela th{text-align:left;font-weight:600;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap}
+.tabela td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tabela td:nth-child(2){white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600}

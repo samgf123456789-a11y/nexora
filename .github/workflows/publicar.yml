@@ -45,7 +45,7 @@ jobs:
 
       # Memória entre execuções: restaura o último JSON e, ao final, guarda o novo.
       - name: Restaurar dados da última execução
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             web/data/oportunidades.json
